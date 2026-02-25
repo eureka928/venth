@@ -1,0 +1,1752 @@
+[
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 47,
+    "rewards": 0.011472196,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 150,
+    "rewards": 0.011318622,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 144,
+    "rewards": 0.011288525,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 129,
+    "rewards": 0.011224134,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 50,
+    "rewards": 0.011189232,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 202,
+    "rewards": 0.01112768,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 218,
+    "rewards": 0.011115467,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 237,
+    "rewards": 0.011098677,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 235,
+    "rewards": 0.011071024,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 91,
+    "rewards": 0.011067074,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 12,
+    "rewards": 0.01105577,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 27,
+    "rewards": 0.011047691,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 169,
+    "rewards": 0.011032833,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 153,
+    "rewards": 0.01096429,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 178,
+    "rewards": 0.01093605,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 185,
+    "rewards": 0.010928043,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 82,
+    "rewards": 0.010923193,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 222,
+    "rewards": 0.010918005,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 116,
+    "rewards": 0.010913963,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 106,
+    "rewards": 0.010907666,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 233,
+    "rewards": 0.010898462,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 135,
+    "rewards": 0.010827661,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 234,
+    "rewards": 0.0108179925,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 73,
+    "rewards": 0.010762265,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 132,
+    "rewards": 0.010598005,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 208,
+    "rewards": 0.010192629,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 253,
+    "rewards": 0.0101866955,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 84,
+    "rewards": 0.007085791,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 36,
+    "rewards": 0.0070220837,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 97,
+    "rewards": 0.0070136553,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 164,
+    "rewards": 0.0067113163,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 145,
+    "rewards": 0.006615497,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 195,
+    "rewards": 0.0065381355,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 205,
+    "rewards": 0.003161241,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 189,
+    "rewards": 0.0031459804,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 201,
+    "rewards": 0.0027314394,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 133,
+    "rewards": 0.0026502206,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 254,
+    "rewards": 0.0026295637,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 180,
+    "rewards": 0.0026214898,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 199,
+    "rewards": 0.0026141347,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 29,
+    "rewards": 0.0026063118,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 148,
+    "rewards": 0.0026060403,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 112,
+    "rewards": 0.0025784431,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 242,
+    "rewards": 0.0025783074,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 216,
+    "rewards": 0.0025660244,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 56,
+    "rewards": 0.0025470294,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 39,
+    "rewards": 0.0024929987,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 46,
+    "rewards": 0.0024862853,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 125,
+    "rewards": 0.0024809919,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 40,
+    "rewards": 0.0024798603,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 200,
+    "rewards": 0.0024793604,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 72,
+    "rewards": 0.002468293,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 44,
+    "rewards": 0.002464415,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 177,
+    "rewards": 0.0024576706,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 212,
+    "rewards": 0.0024572872,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 122,
+    "rewards": 0.002456476,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 85,
+    "rewards": 0.0024498198,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 41,
+    "rewards": 0.002448931,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 239,
+    "rewards": 0.002445833,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 30,
+    "rewards": 0.00244431,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 88,
+    "rewards": 0.0024364672,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 187,
+    "rewards": 0.0024321764,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 110,
+    "rewards": 0.0024260844,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 136,
+    "rewards": 0.0024238022,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 229,
+    "rewards": 0.0024222715,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 60,
+    "rewards": 0.0024173174,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 3,
+    "rewards": 0.0024167113,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 247,
+    "rewards": 0.002392507,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 140,
+    "rewards": 0.002390762,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 246,
+    "rewards": 0.0023638927,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 92,
+    "rewards": 0.0022792465,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 55,
+    "rewards": 0.0012893034,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 101,
+    "rewards": 0.0012840162,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 79,
+    "rewards": 0.0012809508,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 211,
+    "rewards": 0.0012723878,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 157,
+    "rewards": 0.0012641373,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 204,
+    "rewards": 0.0012618131,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 188,
+    "rewards": 0.0012585537,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 107,
+    "rewards": 0.0012547182,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 18,
+    "rewards": 0.001254334,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 236,
+    "rewards": 0.0012539219,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 108,
+    "rewards": 0.0012502489,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 182,
+    "rewards": 0.0012439602,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 173,
+    "rewards": 0.0012430497,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 35,
+    "rewards": 0.0011777864,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 76,
+    "rewards": 0.000784576,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 255,
+    "rewards": 0.000772206,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 186,
+    "rewards": 0.00077213685,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 119,
+    "rewards": 0.00077031093,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 114,
+    "rewards": 0.000769071,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 10,
+    "rewards": 0.000766744,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 240,
+    "rewards": 0.00075962645,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 66,
+    "rewards": 0.0007592548,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 14,
+    "rewards": 0.0007578775,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 15,
+    "rewards": 0.0007576462,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 7,
+    "rewards": 0.0007519875,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 149,
+    "rewards": 0.00075058884,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 163,
+    "rewards": 0.00074652326,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 126,
+    "rewards": 0.0007449768,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 120,
+    "rewards": 0.0007426608,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 134,
+    "rewards": 0.0007422107,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 21,
+    "rewards": 0.00056977203,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 226,
+    "rewards": 0.0005642131,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 28,
+    "rewards": 0.0005638013,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 160,
+    "rewards": 0.0005635312,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 207,
+    "rewards": 0.0005628421,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 131,
+    "rewards": 0.00056256267,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 206,
+    "rewards": 0.00056230224,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 4,
+    "rewards": 0.0005621079,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 203,
+    "rewards": 0.0005620939,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 214,
+    "rewards": 0.00056173175,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 61,
+    "rewards": 0.00056171283,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 59,
+    "rewards": 0.0005616046,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 179,
+    "rewards": 0.0005615509,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 198,
+    "rewards": 0.000561327,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 241,
+    "rewards": 0.0005592258,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 151,
+    "rewards": 0.0005515293,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 219,
+    "rewards": 0.00055138837,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 94,
+    "rewards": 0.00055128906,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 83,
+    "rewards": 0.0005512233,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 89,
+    "rewards": 0.0005510466,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 65,
+    "rewards": 0.00055097014,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 159,
+    "rewards": 0.0005508776,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 161,
+    "rewards": 0.0005508469,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 243,
+    "rewards": 0.0005506955,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 139,
+    "rewards": 0.0005506361,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 62,
+    "rewards": 0.0005505047,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 5,
+    "rewards": 0.00055033754,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 67,
+    "rewards": 0.0005485996,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 137,
+    "rewards": 0.00047763664,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 104,
+    "rewards": 0.0004753378,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 16,
+    "rewards": 0.00047358114,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 172,
+    "rewards": 0.00047239882,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 45,
+    "rewards": 0.00047225103,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 143,
+    "rewards": 0.00046875124,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 166,
+    "rewards": 0.00046858707,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 223,
+    "rewards": 0.00046624077,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 25,
+    "rewards": 0.00046606493,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 181,
+    "rewards": 0.0004648082,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 152,
+    "rewards": 0.0004640922,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 63,
+    "rewards": 0.00046298152,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 228,
+    "rewards": 0.00046256804,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 141,
+    "rewards": 0.0004623378,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 124,
+    "rewards": 0.00046221414,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 118,
+    "rewards": 0.0004616678,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 99,
+    "rewards": 0.0004616226,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 19,
+    "rewards": 0.0004612561,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 249,
+    "rewards": 0.0004611496,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 98,
+    "rewards": 0.00046071838,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 102,
+    "rewards": 0.00046061203,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 244,
+    "rewards": 0.00046039376,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 78,
+    "rewards": 0.00046010263,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 127,
+    "rewards": 0.00045995315,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 174,
+    "rewards": 0.00045906048,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 109,
+    "rewards": 0.00045868874,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 250,
+    "rewards": 0.0004585499,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 238,
+    "rewards": 0.00045783567,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 100,
+    "rewards": 0.0004562748,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 138,
+    "rewards": 0.0004561995,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 215,
+    "rewards": 0.00045586925,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 6,
+    "rewards": 0.00045481327,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 31,
+    "rewards": 0.0004543756,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 80,
+    "rewards": 0.00045349548,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 196,
+    "rewards": 0.0004531712,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 156,
+    "rewards": 0.00045240947,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 86,
+    "rewards": 0.00045193004,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 113,
+    "rewards": 0.00045060174,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 93,
+    "rewards": 0.00045036725,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 20,
+    "rewards": 0.00044836744,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 9,
+    "rewards": 0.0004472682,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 220,
+    "rewards": 0.00044665724,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 37,
+    "rewards": 0.00044434826,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 184,
+    "rewards": 0.0004442278,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 75,
+    "rewards": 0.00040243837,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 142,
+    "rewards": 0.00020936369,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 167,
+    "rewards": 4.6546254e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 175,
+    "rewards": 4.5990295e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 68,
+    "rewards": 4.590148e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 32,
+    "rewards": 4.5747154e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 230,
+    "rewards": 4.567955e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 11,
+    "rewards": 4.533529e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 51,
+    "rewards": 4.5098026e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 26,
+    "rewards": 4.4977696e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 123,
+    "rewards": 3.8358135e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 33,
+    "rewards": 2.957607e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 245,
+    "rewards": 2.9544231e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 103,
+    "rewards": 2.9440871e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 43,
+    "rewards": 2.9369165e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 96,
+    "rewards": 2.9316005e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 221,
+    "rewards": 2.9265248e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 165,
+    "rewards": 2.90831e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 146,
+    "rewards": 2.9039396e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 232,
+    "rewards": 2.8937106e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 48,
+    "rewards": 2.8873099e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 57,
+    "rewards": 2.8849332e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 193,
+    "rewards": 2.1393405e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 213,
+    "rewards": 2.0908497e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 251,
+    "rewards": 2.0826938e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 217,
+    "rewards": 2.0552468e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 147,
+    "rewards": 2.0070573e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 191,
+    "rewards": 1.8402296e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 115,
+    "rewards": 1.8222187e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 155,
+    "rewards": 1.8197949e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 170,
+    "rewards": 1.8087743e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 209,
+    "rewards": 1.8008453e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 154,
+    "rewards": 1.7986884e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 117,
+    "rewards": 1.7897384e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 194,
+    "rewards": 1.183003e-05,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 90,
+    "rewards": 5.5228215e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 81,
+    "rewards": 5.3688163e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 168,
+    "rewards": 5.336924e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 121,
+    "rewards": 5.308438e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 58,
+    "rewards": 5.274584e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 49,
+    "rewards": 2.3362172e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 69,
+    "rewards": 2.261247e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 192,
+    "rewards": 1.9862725e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 52,
+    "rewards": 1.7548625e-06,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 54,
+    "rewards": 9.586404e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 111,
+    "rewards": 9.318898e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 22,
+    "rewards": 8.127221e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 128,
+    "rewards": 2.39999e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 176,
+    "rewards": 2.3750587e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 197,
+    "rewards": 1.725935e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 224,
+    "rewards": 1.7043428e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 171,
+    "rewards": 1.695325e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 225,
+    "rewards": 1.5630073e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 95,
+    "rewards": 1.3893116e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 23,
+    "rewards": 1.3678044e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 42,
+    "rewards": 1.1347967e-07,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 158,
+    "rewards": 9.6883255e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 190,
+    "rewards": 9.547618e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 227,
+    "rewards": 9.4852695e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 87,
+    "rewards": 8.518453e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 64,
+    "rewards": 7.770378e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 252,
+    "rewards": 7.7062836e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 71,
+    "rewards": 7.218401e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 105,
+    "rewards": 6.531951e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 13,
+    "rewards": 6.048192e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 1,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 17,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 38,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 74,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 53,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 248,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 34,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 183,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 162,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 130,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 8,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  },
+  {
+    "updated_at": "2026-02-25T23:27:00Z",
+    "neuron_uid": 0,
+    "rewards": 5.9211626e-08,
+    "coldkey": "",
+    "ip_address": ""
+  }
+]

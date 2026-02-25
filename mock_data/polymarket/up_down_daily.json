@@ -1,0 +1,21 @@
+{
+  "slug": "bitcoin-up-or-down-on-february-26",
+  "start_price": 68249.16,
+  "current_time": "2026-02-25T23:45:17.526062+00:00",
+  "best_ask_size": 1420.0,
+  "best_bid_size": 20.0,
+  "current_price": 67676.62358575,
+  "synth_outcome": "Down",
+  "best_ask_price": 0.4,
+  "best_bid_price": 0.39,
+  "event_end_time": "2026-02-26T17:00:00+00:00",
+  "current_outcome": "Down",
+  "event_start_time": "2026-02-25T17:00:00+00:00",
+  "polymarket_outcome": "Down",
+  "event_creation_time": "2026-02-24T17:02:40.731726+00:00",
+  "synth_probability_up": 0.4151,
+  "polymarket_probability_up": 0.395,
+  "polymarket_last_trade_time": "2026-02-25T23:44:22+00:00",
+  "polymarket_last_trade_price": 0.4,
+  "polymarket_last_trade_outcome": "Up"
+}
