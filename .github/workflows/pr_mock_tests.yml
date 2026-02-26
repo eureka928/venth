@@ -1,0 +1,71 @@
+name: PR Mock Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  mock-tests:
+    name: Test tools with mock data
+    runs-on: ubuntu-latest
+    # No SYNTH_API_KEY is set — forces mock mode automatically
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install base dependencies
+        run: pip install requests pytest
+
+      - name: Discover and test tools
+        run: |
+          echo "🔍 Discovering tools..."
+          FAILED=0
+          PASSED=0
+
+          for tool_dir in tools/*/; do
+            # Skip the template
+            tool_name=$(basename "$tool_dir")
+            if [ "$tool_name" = "_template" ]; then
+              continue
+            fi
+
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "🔧 Testing tool: $tool_name"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # Install tool-specific requirements if they exist
+            if [ -f "$tool_dir/requirements.txt" ]; then
+              echo "📦 Installing requirements..."
+              pip install -r "$tool_dir/requirements.txt" -q
+            fi
+
+            # Run pytest if tests directory exists
+            if [ -d "$tool_dir/tests" ]; then
+              echo "🧪 Running tests..."
+              if python -m pytest "$tool_dir/tests" -v --tb=short; then
+                echo "✅ $tool_name: PASSED"
+                PASSED=$((PASSED + 1))
+              else
+                echo "❌ $tool_name: FAILED"
+                FAILED=$((FAILED + 1))
+              fi
+            else
+              echo "⚠️  No tests/ directory found for $tool_name"
+            fi
+          done
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 Results: $PASSED passed, $FAILED failed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ "$FAILED" -gt 0 ]; then
+            exit 1
+          fi

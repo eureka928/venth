@@ -1,0 +1,197 @@
+{
+  "data": [
+    {
+      "interval": {
+        "full_width": "1.0%",
+        "lower_bound": 273.57240178265005,
+        "upper_bound": 276.32187315735
+      },
+      "expected_impermanent_loss": 0.003273700145623109,
+      "expected_time_in_interval": 677.2515,
+      "probability_to_stay_in_interval": {
+        "24": 0.0198
+      }
+    },
+    {
+      "interval": {
+        "full_width": "2.0%",
+        "lower_bound": 272.1976660953,
+        "upper_bound": 277.69660884470005
+      },
+      "expected_impermanent_loss": 0.0024481884274317606,
+      "expected_time_in_interval": 1127.385,
+      "probability_to_stay_in_interval": {
+        "24": 0.3564
+      }
+    },
+    {
+      "interval": {
+        "full_width": "3.0%",
+        "lower_bound": 270.82293040795,
+        "upper_bound": 279.07134453205
+      },
+      "expected_impermanent_loss": 0.0018662826929275503,
+      "expected_time_in_interval": 1320.7265,
+      "probability_to_stay_in_interval": {
+        "24": 0.7008
+      }
+    },
+    {
+      "interval": {
+        "full_width": "4.0%",
+        "lower_bound": 269.44819472060004,
+        "upper_bound": 280.4460802194
+      },
+      "expected_impermanent_loss": 0.001462995889212518,
+      "expected_time_in_interval": 1395.511,
+      "probability_to_stay_in_interval": {
+        "24": 0.8796
+      }
+    },
+    {
+      "interval": {
+        "full_width": "5.0%",
+        "lower_bound": 268.07345903325,
+        "upper_bound": 281.82081590675
+      },
+      "expected_impermanent_loss": 0.001186602844036021,
+      "expected_time_in_interval": 1425.201,
+      "probability_to_stay_in_interval": {
+        "24": 0.9602
+      }
+    },
+    {
+      "interval": {
+        "full_width": "6.0%",
+        "lower_bound": 266.6987233459,
+        "upper_bound": 283.19555159410004
+      },
+      "expected_impermanent_loss": 0.0009934784576579253,
+      "expected_time_in_interval": 1436.5535000000002,
+      "probability_to_stay_in_interval": {
+        "24": 0.9891
+      }
+    },
+    {
+      "interval": {
+        "full_width": "7.0%",
+        "lower_bound": 265.32398765855004,
+        "upper_bound": 284.57028728145
+      },
+      "expected_impermanent_loss": 0.0008528410713864222,
+      "expected_time_in_interval": 1438.5735,
+      "probability_to_stay_in_interval": {
+        "24": 0.9955
+      }
+    },
+    {
+      "interval": {
+        "full_width": "8.0%",
+        "lower_bound": 263.9492519712,
+        "upper_bound": 285.94502296880006
+      },
+      "expected_impermanent_loss": 0.0007465780581089173,
+      "expected_time_in_interval": 1439.658,
+      "probability_to_stay_in_interval": {
+        "24": 0.9991
+      }
+    },
+    {
+      "interval": {
+        "full_width": "9.0%",
+        "lower_bound": 262.57451628385,
+        "upper_bound": 287.31975865615
+      },
+      "expected_impermanent_loss": 0.0006636835042859478,
+      "expected_time_in_interval": 1439.7524999999998,
+      "probability_to_stay_in_interval": {
+        "24": 0.9991
+      }
+    },
+    {
+      "interval": {
+        "full_width": "10.0%",
+        "lower_bound": 261.19978059650003,
+        "upper_bound": 288.6944943435
+      },
+      "expected_impermanent_loss": 0.0005973151538573529,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "11.0%",
+        "lower_bound": 259.82504490915,
+        "upper_bound": 290.06923003085
+      },
+      "expected_impermanent_loss": 0.0005430137762339573,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "12.0%",
+        "lower_bound": 258.4503092218,
+        "upper_bound": 291.44396571820005
+      },
+      "expected_impermanent_loss": 0.0004977626282144609,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "13.0%",
+        "lower_bound": 257.07557353445003,
+        "upper_bound": 292.81870140555003
+      },
+      "expected_impermanent_loss": 0.00045947319527488693,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "14.0%",
+        "lower_bound": 255.70083784710002,
+        "upper_bound": 294.19343709290007
+      },
+      "expected_impermanent_loss": 0.0004266536813266807,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "15.0%",
+        "lower_bound": 254.32610215975004,
+        "upper_bound": 295.56817278025
+      },
+      "expected_impermanent_loss": 0.0003982101025715687,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    },
+    {
+      "interval": {
+        "full_width": "16.0%",
+        "lower_bound": 252.95136647240003,
+        "upper_bound": 296.94290846760003
+      },
+      "expected_impermanent_loss": 0.0003733219711608456,
+      "expected_time_in_interval": 1440.0,
+      "probability_to_stay_in_interval": {
+        "24": 1.0
+      }
+    }
+  ],
+  "current_price": 274.94713747000003
+}

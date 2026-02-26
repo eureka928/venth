@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (NEVER commit API keys)
+.env
+.env.local
+
+# Pytest
+.pytest_cache/
+
+# PR review sandboxes
+.sandbox-pr-*/
+
+# Distribution
+*.egg
+*.whl

@@ -1,0 +1,155 @@
+{
+  "data": [
+    {
+      "price_change": "1.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0003,
+        "24": 0.0019
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0012,
+        "24": 0.0035
+      }
+    },
+    {
+      "price_change": "2.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "3.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "4.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "5.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "6.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "7.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "8.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "9.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    },
+    {
+      "price_change": "10.0%",
+      "long_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      },
+      "short_liquidation_probability": {
+        "6": 0.0,
+        "12": 0.0,
+        "18": 0.0,
+        "24": 0.0
+      }
+    }
+  ],
+  "current_price": 693.5175148
+}

@@ -30,14 +30,14 @@ about: Submit a new tool for the Venth project
 
 ## Testing
 
-- [ ] Tested against Synth API
-- [ ] Manually tested
-- [ ] Tests added/updated
+- [ ] Tests pass in mock mode (`python -m pytest tools/<tool-name>/tests/ -v`)
+- [ ] Manually tested with mock data
+- [ ] Tests added in `tools/<tool-name>/tests/`
 
 ## Checklist
 
 - [ ] **1-page technical document at `tools/<tool-name>/README.md`**
 - [ ] Tool lives in its own subfolder under `tools/`
-- [ ] Tool is listed in the root README
+- [ ] Tool uses `synth_client.SynthClient` for all Synth API access
 - [ ] Code follows project style guidelines
 - [ ] Self-review completed
