@@ -107,7 +107,7 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
             "hovertemplate": (
                 f"<b>{label}</b><br>"
                 "Step %{x}<br>"
-                "Median: %{y:+.3f}% (%{customdata:+$,.2f})"
+                "Median: %{y:+.2f}% (%{customdata:+$,.2f})"
                 "<extra></extra>"
             ),
         })

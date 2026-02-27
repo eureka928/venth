@@ -48,7 +48,7 @@ The dashboard contains two sections:
 
 **Probability Cone Comparison** - Interactive Plotly chart with semi-transparent bands (5th-95th percentile) and median lines for each equity. Hover to see exact values at any time step.
 
-**Equity Rankings** - Sortable table showing price, median move %, forecasted volatility, directional skew, probability range, median vs SPY, and skew vs SPY. Click any column header to re-sort. Values are color-coded green (positive) or red (negative).
+**Equity Rankings** - Sortable table showing price, median move (% and $), forecasted volatility, directional skew (% and $), probability range (% and $), median vs SPY, and skew vs SPY. Click any column header to re-sort. Values are color-coded green (positive) or red (negative), with nominal dollar amounts shown alongside percentages for immediate context.
 
 ## Technical Details
 
