@@ -201,6 +201,33 @@ def test_generate_dashboard_html():
     # Check sortable table headers
     assert "sortable" in html
     assert "data-sort" in html
+    # Check nominal values are displayed
+    assert "nominal" in html
+    assert "$" in html
+
+
+def test_calculate_metrics_nominal_values():
+    """Verify nominal dollar values are computed correctly."""
+    client = _make_client()
+    data = fetch_all_data(client)
+    metrics = calculate_metrics(data)
+
+    for asset in EQUITIES:
+        m = metrics[asset]
+        final = data[asset]["percentiles"][-1]
+        cp = data[asset]["current_price"]
+
+        assert "median_move_nominal" in m
+        assert "upside_nominal" in m
+        assert "downside_nominal" in m
+        assert "skew_nominal" in m
+        assert "range_nominal" in m
+
+        assert abs(m["median_move_nominal"] - (final["0.5"] - cp)) < 1e-10
+        assert abs(m["upside_nominal"] - (final["0.95"] - cp)) < 1e-10
+        assert abs(m["downside_nominal"] - (cp - final["0.05"])) < 1e-10
+        assert abs(m["skew_nominal"] - (m["upside_nominal"] - m["downside_nominal"])) < 1e-10
+        assert abs(m["range_nominal"] - (m["upside_nominal"] + m["downside_nominal"])) < 1e-10
 
 
 def test_volatility_values():
@@ -225,6 +252,7 @@ if __name__ == "__main__":
     test_rank_equities_sorting()
     test_rank_equities_ascending()
     test_get_normalized_series()
+    test_calculate_metrics_nominal_values()
     test_generate_dashboard_html()
     test_volatility_values()
     print("All tests passed!")

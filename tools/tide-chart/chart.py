@@ -78,6 +78,11 @@ def calculate_metrics(data):
         skew = upside - downside
         range_pct = upside + downside
 
+        # Nominal (dollar) values
+        median_move_nominal = final["0.5"] - current_price
+        upside_nominal = final["0.95"] - current_price
+        downside_nominal = current_price - final["0.05"]
+
         metrics[asset] = {
             "median_move": median_move,
             "upside": upside,
@@ -86,6 +91,11 @@ def calculate_metrics(data):
             "range_pct": range_pct,
             "volatility": info["average_volatility"],
             "current_price": current_price,
+            "median_move_nominal": median_move_nominal,
+            "upside_nominal": upside_nominal,
+            "downside_nominal": downside_nominal,
+            "skew_nominal": upside_nominal - downside_nominal,
+            "range_nominal": upside_nominal + downside_nominal,
         }
     return metrics
 

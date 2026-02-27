@@ -94,9 +94,12 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
         })
 
         # Median line
+        current_price = metrics[asset]["current_price"]
+        median_nominal = [v * current_price / 100 for v in median]
         traces.append({
             "x": steps,
             "y": median,
+            "customdata": median_nominal,
             "type": "scatter",
             "mode": "lines",
             "line": {"color": color["primary"], "width": 2},
@@ -104,7 +107,8 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
             "hovertemplate": (
                 f"<b>{label}</b><br>"
                 "Step %{x}<br>"
-                "Median: %{y:.3f}%<extra></extra>"
+                "Median: %{y:+.3f}% (%{customdata:+$,.2f})"
+                "<extra></extra>"
             ),
         })
 
@@ -116,10 +120,15 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
         color = EQUITY_COLORS[asset]["primary"]
         label = EQUITY_LABELS[asset]
 
-        def fmt_val(val, suffix="%"):
+        def fmt_val(val, nominal=None, suffix="%"):
             sign = "+" if val > 0 else ""
             css_class = "positive" if val > 0 else "negative" if val < 0 else "neutral"
-            return f'<span class="{css_class}">{sign}{val:.3f}{suffix}</span>'
+            pct_str = f"{sign}{val:.3f}{suffix}"
+            if nominal is not None:
+                nom_sign = "+" if nominal > 0 else "-" if nominal < 0 else ""
+                nom_str = f"{nom_sign}${abs(nominal):,.2f}"
+                return f'<span class="{css_class}">{pct_str} <span class="nominal">({nom_str})</span></span>'
+            return f'<span class="{css_class}">{pct_str}</span>'
 
         rel_median = "-" if asset == "SPY" else fmt_val(m["relative_median"])
         rel_skew = "-" if asset == "SPY" else fmt_val(m["relative_skew"])
@@ -133,10 +142,10 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
                 <span class="asset-ticker">{asset}</span>
             </td>
             <td class="price-cell">${m['current_price']:,.2f}</td>
-            <td>{fmt_val(m['median_move'])}</td>
+            <td>{fmt_val(m['median_move'], m['median_move_nominal'])}</td>
             <td>{m['volatility']:.2f}</td>
-            <td>{fmt_val(m['skew'])}</td>
-            <td>{m['range_pct']:.3f}%</td>
+            <td>{fmt_val(m['skew'], m['skew_nominal'])}</td>
+            <td>{m['range_pct']:.3f}% <span class="nominal">(${m['range_nominal']:,.2f})</span></td>
             <td>{rel_median}</td>
             <td>{rel_skew}</td>
         </tr>"""
@@ -496,6 +505,12 @@ def generate_dashboard_html(normalized_series, metrics, ranked):
   .positive {{ color: var(--positive); }}
   .negative {{ color: var(--negative); }}
   .neutral {{ color: var(--text-secondary); }}
+
+  .nominal {{
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 400;
+  }}
 
   /* Footer */
   .footer {{
