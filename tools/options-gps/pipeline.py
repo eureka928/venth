@@ -36,19 +36,32 @@ class ScoredStrategy:
     rationale: str
 
 
-def run_forecast_fusion(percentiles_1h: dict, percentiles_24h: dict, current_price: float) -> FusionState:
-    """Classify market state from 1h and 24h forecast percentiles (last-step dict). Uses median vs current."""
-    if not percentiles_1h or not percentiles_24h:
+def run_forecast_fusion(percentiles_1h: dict | None, percentiles_24h: dict, current_price: float) -> FusionState:
+    """Classify market state from 1h and 24h forecast percentiles (last-step dict). Uses median vs current.
+    If 1h data is missing, falls back to 24h-only classification."""
+    if not percentiles_24h:
         return "unclear"
-    p1h = percentiles_1h.get("0.5")
     p24h = percentiles_24h.get("0.5")
-    if p1h is None or p24h is None:
+    if p24h is None:
         return "unclear"
     thresh = current_price * 0.002
-    up_1h = p1h > current_price + thresh
-    down_1h = p1h < current_price - thresh
     up_24h = p24h > current_price + thresh
     down_24h = p24h < current_price - thresh
+    if not percentiles_1h:
+        if up_24h:
+            return "aligned_bullish"
+        if down_24h:
+            return "aligned_bearish"
+        return "unclear"
+    p1h = percentiles_1h.get("0.5")
+    if p1h is None:
+        if up_24h:
+            return "aligned_bullish"
+        if down_24h:
+            return "aligned_bearish"
+        return "unclear"
+    up_1h = p1h > current_price + thresh
+    down_1h = p1h < current_price - thresh
     if up_1h and up_24h:
         return "aligned_bullish"
     if down_1h and down_24h:
@@ -339,6 +352,13 @@ def compute_payoff_metrics(
     return pop, ev
 
 
+_DEFINED_RISK_TYPES = frozenset({
+    "call_debit_spread", "put_debit_spread",
+    "bull_put_credit_spread", "bear_call_credit_spread",
+    "iron_condor", "long_call_butterfly",
+})
+
+
 def rank_strategies(
     candidates: list[StrategyCandidate],
     fusion_state: FusionState,
@@ -347,8 +367,12 @@ def rank_strategies(
     risk: RiskLevel,
     current_price: float,
     confidence: float = 1.0,
+    volatility_ratio: float = 1.0,
 ) -> list[ScoredStrategy]:
-    """Score and sort strategies. Returns list of ScoredStrategy sorted by score desc."""
+    """Score and sort strategies. Returns list of ScoredStrategy sorted by score desc.
+    volatility_ratio = forecast_vol / realized_vol (1.0 = normal). When elevated,
+    defined-risk strategies get a bonus and naked/premium strategies get a penalty."""
+    vol_elevated = volatility_ratio > 1.15
     scored: list[ScoredStrategy] = []
     for c in candidates:
         if not passes_hard_filters(c, risk, current_price):
@@ -370,9 +394,16 @@ def rank_strategies(
         score = fit * 0.4 + pop * w_pop + max(0, ev) * w_ev * 0.01
         tail_penalty = (1 - pop) * 0.1 + min(0.2, tail_risk * 0.0001)
         score -= tail_penalty
+        if vol_elevated:
+            if c.strategy_type in _DEFINED_RISK_TYPES:
+                score += 0.15
+            else:
+                score -= 0.10
         score *= confidence
         invalidation, reroute, review_time = _risk_plan(c)
-        rationale = f"Fit {fit:.0%}, PoP {pop:.0%}, EV ${ev:.0f}"
+        ev_pct = (ev / current_price * 100) if current_price > 0 else 0.0
+        vol_note = " [vol: prefer spreads]" if vol_elevated else ""
+        rationale = f"Fit {fit:.0%}, PoP {pop:.0%}, EV ${ev:,.0f} ({ev_pct:+.2f}%){vol_note}"
         scored.append(
             ScoredStrategy(
                 strategy=c,
@@ -428,14 +459,23 @@ def forecast_confidence(percentiles_last: dict, current_price: float) -> float:
     return max(0.1, 1.0 - (spread - 0.02) / 0.13)
 
 
-def should_no_trade(fusion_state: FusionState, view: ViewBias, volatility_high: bool, confidence: float = 1.0) -> bool:
-    """Guardrail: no trade when confidence low or signals conflict."""
+def is_volatility_elevated(forecast_vol: float, realized_vol: float) -> bool:
+    """Adaptive volatility check: forecast is elevated if it exceeds realized by >30% or is in top regime."""
+    if realized_vol <= 0:
+        return forecast_vol > 60
+    ratio = forecast_vol / realized_vol
+    return ratio > 1.3 or forecast_vol > realized_vol + 20
+
+
+def should_no_trade(fusion_state: FusionState, view: ViewBias, volatility_high: bool, confidence: float = 1.0) -> str | None:
+    """Guardrail: no trade when confidence low or signals conflict.
+    Returns a reason string if no-trade, or None if trading is OK."""
     if volatility_high:
-        return True
+        return "Volatility elevated — forecast significantly above recent realized."
     if confidence < 0.25:
-        return True
+        return "Confidence too low — wide forecast dispersion."
     if fusion_state == "countermove" and view != "neutral":
-        return True
+        return "Signals conflict — 1h and 24h forecasts disagree with your view."
     if fusion_state == "unclear" and view != "neutral":
-        return True
-    return False
+        return "Signals unclear — no strong directional conviction from forecasts."
+    return None

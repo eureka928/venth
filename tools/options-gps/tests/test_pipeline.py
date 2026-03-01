@@ -14,6 +14,7 @@ from pipeline import (
     select_three_cards,
     should_no_trade,
     forecast_confidence,
+    is_volatility_elevated,
     StrategyCandidate,
 )
 
@@ -46,9 +47,28 @@ def test_fusion_unclear():
     assert state == "unclear"
 
 
-def test_fusion_empty_returns_unclear():
-    assert run_forecast_fusion({}, P24H_BULL, CURRENT) == "unclear"
+def test_fusion_empty_1h_falls_back_to_24h():
+    assert run_forecast_fusion({}, P24H_BULL, CURRENT) == "aligned_bullish"
+    assert run_forecast_fusion({}, P24H_BEAR, CURRENT) == "aligned_bearish"
+
+
+def test_fusion_empty_24h_returns_unclear():
     assert run_forecast_fusion(P1H_BULL, {}, CURRENT) == "unclear"
+
+
+def test_fusion_none_1h_falls_back_to_24h_bullish():
+    state = run_forecast_fusion(None, P24H_BULL, CURRENT)
+    assert state == "aligned_bullish"
+
+
+def test_fusion_none_1h_falls_back_to_24h_bearish():
+    state = run_forecast_fusion(None, P24H_BEAR, CURRENT)
+    assert state == "aligned_bearish"
+
+
+def test_fusion_none_1h_falls_back_to_24h_unclear():
+    state = run_forecast_fusion(None, P24H_NEUTRAL, CURRENT)
+    assert state == "unclear"
 
 
 def test_generate_strategies_bullish():
@@ -121,15 +141,19 @@ def test_rank_and_select_three():
 
 
 def test_should_no_trade_countermove_bullish():
-    assert should_no_trade("countermove", "bullish", False) is True
+    result = should_no_trade("countermove", "bullish", False)
+    assert result is not None
+    assert "conflict" in result.lower() or "disagree" in result.lower()
 
 
 def test_should_no_trade_unclear_neutral():
-    assert should_no_trade("unclear", "neutral", False) is False
+    assert should_no_trade("unclear", "neutral", False) is None
 
 
 def test_should_no_trade_volatility_high():
-    assert should_no_trade("aligned_bullish", "bullish", True) is True
+    result = should_no_trade("aligned_bullish", "bullish", True)
+    assert result is not None
+    assert "volatility" in result.lower()
 
 
 def test_credit_spread_pnl_positive_inside_spread():
@@ -152,8 +176,41 @@ def test_confidence_wide_spread():
 
 
 def test_should_no_trade_low_confidence():
-    assert should_no_trade("aligned_bullish", "bullish", False, confidence=0.1) is True
+    result = should_no_trade("aligned_bullish", "bullish", False, confidence=0.1)
+    assert result is not None
+    assert "confidence" in result.lower()
 
 
 def test_should_no_trade_ok_confidence():
-    assert should_no_trade("aligned_bullish", "bullish", False, confidence=0.8) is False
+    assert should_no_trade("aligned_bullish", "bullish", False, confidence=0.8) is None
+
+
+def test_is_volatility_elevated_adaptive():
+    assert is_volatility_elevated(80, 50) is True
+    assert is_volatility_elevated(55, 50) is False
+    assert is_volatility_elevated(66, 50) is True
+
+
+def test_is_volatility_elevated_no_realized():
+    assert is_volatility_elevated(70, 0) is True
+    assert is_volatility_elevated(50, 0) is False
+
+
+def test_ev_percentage_in_rationale():
+    strat = StrategyCandidate("long_call", "bullish", "A", [68000], 400, 400)
+    outcomes = [67000, 67500, 68000, 68500, 69000]
+    scored = rank_strategies([strat], "aligned_bullish", "bullish", outcomes, "medium", 68000)
+    assert len(scored) >= 1
+    assert "%" in scored[0].rationale
+
+
+def test_vol_elevated_prefers_defined_risk():
+    naked = StrategyCandidate("long_call", "bullish", "Naked call", [68000], 400, 400)
+    spread = StrategyCandidate("call_debit_spread", "bullish", "Spread", [67500, 68500], 300, 300)
+    outcomes = [67000, 67500, 68000, 68500, 69000]
+    scored_normal = rank_strategies([naked, spread], "aligned_bullish", "bullish", outcomes, "medium", 68000, volatility_ratio=1.0)
+    scored_highvol = rank_strategies([naked, spread], "aligned_bullish", "bullish", outcomes, "medium", 68000, volatility_ratio=1.5)
+    normal_top = scored_normal[0].strategy.strategy_type
+    highvol_top = scored_highvol[0].strategy.strategy_type
+    assert highvol_top == "call_debit_spread"
+    assert "vol" in scored_highvol[0].rationale.lower()
