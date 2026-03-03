@@ -25,9 +25,14 @@
 
     <section class="card">
       <div class="label">Signal</div>
-      <div class="row"><span>1 h</span><strong id="signal1h">—</strong></div>
-      <div class="row"><span>24 h</span><strong id="signal24h">—</strong></div>
+      <div class="row"><span id="horizonLabel">Primary</span><strong id="signalPrimary">—</strong></div>
+      <div class="row" id="refRow"><span id="refLabel">Reference</span><strong id="signalRef">—</strong></div>
       <div class="row"><span>Strength</span><strong id="strength">—</strong></div>
+    </section>
+
+    <section class="card" id="assetCard">
+      <div class="row"><span>Asset</span><strong id="assetName">—</strong></div>
+      <div class="row"><span>Market</span><strong id="marketType">—</strong></div>
     </section>
 
     <section class="card">

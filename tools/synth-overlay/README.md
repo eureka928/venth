@@ -20,10 +20,12 @@ Chrome extension that uses Chrome's **native Side Panel** to show Synth market c
 
 ## Synth API usage
 
-- `get_polymarket_daily()` — daily up/down (24h) Synth vs Polymarket.
-- `get_polymarket_hourly()` — hourly up/down (1h).
+- `get_polymarket_daily(asset)` — daily up/down (24h) Synth vs Polymarket.
+- `get_polymarket_hourly(asset)` — hourly up/down (1h).
+- `get_polymarket_15min(asset)` — 15-minute up/down (15m).
+- `get_polymarket_5min(asset)` — 5-minute up/down (5m).
 - `get_polymarket_range()` — range brackets with synth vs polymarket probability per bracket.
-- `get_prediction_percentiles(asset, horizon)` — used for confidence scoring (forecast spread) and optional bias in explanations; wired for both up/down and range.
+- `get_prediction_percentiles(asset, horizon)` — used for confidence scoring (forecast spread) and optional bias in explanations.
 
 ## Run locally
 
@@ -41,8 +43,9 @@ Chrome extension that uses Chrome's **native Side Panel** to show Synth market c
    You should see JSON with `"signal"`, `"edge_pct"`, etc. If you see `"error"` or 404, the slug is not supported for the current mock/API.
 
 2. **Open the exact URL** in Chrome (with the extension loaded from `extension/`):
-   - Daily (mock): `https://polymarket.com/event/bitcoin-up-or-down-on-february-26`
-   - Hourly (mock): `https://polymarket.com/event/bitcoin-up-or-down-february-25-6pm-et`
+   - Daily (BTC): `https://polymarket.com/event/bitcoin-up-or-down-on-february-26`
+   - Hourly (ETH): `https://polymarket.com/event/ethereum-up-or-down-february-25-6pm-et`
+   - 15-Min (SOL): `https://polymarket.com/event/sol-updown-15m-1772204400`
    - The side panel requests the slug from the page and fetches Synth data from the local API. If API returns 200, panel fields populate.
 
 3. **Interaction:**

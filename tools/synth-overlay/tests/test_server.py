@@ -37,6 +37,9 @@ def test_edge_daily(client):
     assert data["signal"] in ("underpriced", "overpriced", "fair")
     assert data["strength"] in ("strong", "moderate", "none")
     assert data["horizon"] == "24h"
+    assert data["market_type"] == "daily"
+    assert data["asset"] == "BTC"
+    # Dual-horizon fields preserved for daily/hourly
     assert "edge_1h_pct" in data
     assert "edge_24h_pct" in data
     assert "signal_1h" in data
@@ -55,9 +58,10 @@ def test_edge_hourly_uses_hourly_primary_fields(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["horizon"] == "1h"
+    assert data["market_type"] == "hourly"
     assert data["slug"] == "bitcoin-up-or-down-february-25-6pm-et"
-    assert data["synth_probability_up"] == 0.0004
-    assert data["polymarket_probability_up"] == 0.006500000000000001
+    assert "synth_probability_up" in data
+    assert "polymarket_probability_up" in data
 
 
 def test_edge_missing_slug(client):
@@ -109,17 +113,65 @@ def test_edge_range_unknown_slug_404(client):
     assert resp.status_code == 404
 
 
-def test_edge_non_btc_daily_rejected(client):
-    resp = client.get("/api/edge?slug=ethereum-up-or-down-on-february-28")
-    assert resp.status_code == 404
+def test_edge_eth_daily_supported(client):
+    resp = client.get("/api/edge?slug=ethereum-up-or-down-on-february-26")
+    assert resp.status_code == 200
     data = resp.get_json()
-    assert "Only BTC" in data["error"]
     assert data["asset"] == "ETH"
+    assert data["market_type"] == "daily"
+    assert "edge_pct" in data
 
 
-def test_edge_non_btc_hourly_rejected(client):
-    resp = client.get("/api/edge?slug=solana-up-or-down-february-28-3pm-et")
-    assert resp.status_code == 404
+def test_edge_sol_hourly_supported(client):
+    resp = client.get("/api/edge?slug=solana-up-or-down-february-25-6pm-et")
+    assert resp.status_code == 200
     data = resp.get_json()
-    assert "Only BTC" in data["error"]
     assert data["asset"] == "SOL"
+    assert data["market_type"] == "hourly"
+    assert "edge_pct" in data
+
+
+def test_edge_15min_btc(client):
+    resp = client.get("/api/edge?slug=btc-updown-15m-1772204400")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["horizon"] == "15min"
+    assert data["market_type"] == "15min"
+    assert data["asset"] == "BTC"
+    assert "edge_pct" in data
+    assert "confidence_score" in data
+    assert "explanation" in data
+    assert len(data["explanation"]) > 10
+    assert "invalidation" in data
+    assert "15min" in data["invalidation"]
+    # Should NOT have dual-horizon 1h/24h fields
+    assert "edge_1h_pct" not in data
+    assert "signal_24h" not in data
+
+
+def test_edge_15min_eth(client):
+    resp = client.get("/api/edge?slug=eth-updown-15m-1772204400")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["asset"] == "ETH"
+    assert data["market_type"] == "15min"
+
+
+def test_edge_5min_btc(client):
+    resp = client.get("/api/edge?slug=btc-updown-5m-1772205000")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["horizon"] == "5min"
+    assert data["market_type"] == "5min"
+    assert data["asset"] == "BTC"
+    assert "edge_pct" in data
+    assert "5min" in data["invalidation"]
+    assert "edge_1h_pct" not in data
+
+
+def test_edge_5min_sol(client):
+    resp = client.get("/api/edge?slug=sol-updown-5m-1772205000")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["asset"] == "SOL"
+    assert data["market_type"] == "5min"

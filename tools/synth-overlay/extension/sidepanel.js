@@ -7,9 +7,14 @@ const els = {
   synthUp: document.getElementById("synthUp"),
   synthDown: document.getElementById("synthDown"),
   edgeValue: document.getElementById("edgeValue"),
-  signal1h: document.getElementById("signal1h"),
-  signal24h: document.getElementById("signal24h"),
+  horizonLabel: document.getElementById("horizonLabel"),
+  signalPrimary: document.getElementById("signalPrimary"),
+  refRow: document.getElementById("refRow"),
+  refLabel: document.getElementById("refLabel"),
+  signalRef: document.getElementById("signalRef"),
   strength: document.getElementById("strength"),
+  assetName: document.getElementById("assetName"),
+  marketType: document.getElementById("marketType"),
   confFill: document.getElementById("confFill"),
   confText: document.getElementById("confText"),
   analysisText: document.getElementById("analysisText"),
@@ -69,9 +74,14 @@ function render(state) {
   els.synthUp.textContent = state.synthUp;
   els.synthDown.textContent = state.synthDown;
   els.edgeValue.textContent = state.edge;
-  els.signal1h.textContent = state.signal1h;
-  els.signal24h.textContent = state.signal24h;
+  els.horizonLabel.textContent = state.horizonLabel || "Primary";
+  els.signalPrimary.textContent = state.signalPrimary;
+  els.refLabel.textContent = state.refLabel || "Reference";
+  els.signalRef.textContent = state.signalRef;
+  els.refRow.style.display = state.signalRef === "—" ? "none" : "";
   els.strength.textContent = state.strength;
+  els.assetName.textContent = state.asset || "—";
+  els.marketType.textContent = state.marketType || "—";
   els.analysisText.textContent = state.analysis;
   els.noTrade.classList.toggle("hidden", !state.noTrade);
   els.invalidationText.textContent = state.invalidation;
@@ -83,7 +93,9 @@ function render(state) {
 
 const EMPTY = {
   synthUp: "—", synthDown: "—", edge: "—",
-  signal1h: "—", signal24h: "—", strength: "—",
+  horizonLabel: "Primary", signalPrimary: "—",
+  refLabel: "Reference", signalRef: "—",
+  strength: "—", asset: "—", marketType: "—",
   analysis: "—", noTrade: false, invalidation: "—",
   confPct: 0, confColor: "#9ca3af", confText: "—",
   lastUpdate: "—",
@@ -119,22 +131,46 @@ async function refresh() {
     return;
   }
 
-  const synthProbUp = edge.synth_probability_up != null ? edge.synth_probability_up : edge.synth_probability;
-  const conf = edge.confidence_score != null ? edge.confidence_score : 0.5;
-  const confPct = Math.round(conf * 100);
+  var synthProbUp = edge.synth_probability_up != null ? edge.synth_probability_up : edge.synth_probability;
+  var conf = edge.confidence_score != null ? edge.confidence_score : 0.5;
+  var confPct = Math.round(conf * 100);
+  var horizon = edge.horizon || "24h";
+  var mtype = edge.market_type || "daily";
+
+  // Build signal labels based on response shape
+  var horizonLabel = horizon;
+  var signalPrimary = (edge.signal || "—") + " " + fmtEdge(edge.edge_pct);
+  var refLabel = "Reference";
+  var signalRef = "—";
+
+  // Dual-horizon (daily/hourly): use 1h/24h fields
+  if (edge.signal_1h && edge.signal_24h) {
+    horizonLabel = "1 h";
+    signalPrimary = edge.signal_1h + " " + fmtEdge(edge.edge_1h_pct);
+    refLabel = "24 h";
+    signalRef = edge.signal_24h + " " + fmtEdge(edge.edge_24h_pct);
+  } else if (edge.ref_signal) {
+    // Short-horizon with reference context
+    refLabel = edge.ref_horizon || "Ref";
+    signalRef = edge.ref_signal + " " + fmtEdge(edge.ref_edge_pct);
+  }
 
   render({
-    status: "Synced — showing Synth forecast data.",
+    status: "Synced — " + (edge.asset || "BTC") + " " + horizon + " forecast.",
     synthUp: fmtCentsFromProb(synthProbUp),
     synthDown: synthProbUp == null ? "—" : fmtCentsFromProb(1 - synthProbUp),
     edge: fmtEdge(edge.edge_pct),
-    signal1h: edge.signal_1h ? edge.signal_1h + " " + fmtEdge(edge.edge_1h_pct) : (edge.signal || "—"),
-    signal24h: edge.signal_24h ? edge.signal_24h + " " + fmtEdge(edge.edge_24h_pct) : "—",
+    horizonLabel: horizonLabel,
+    signalPrimary: signalPrimary,
+    refLabel: refLabel,
+    signalRef: signalRef,
     strength: edge.strength || "—",
+    asset: edge.asset || "BTC",
+    marketType: mtype,
     analysis: edge.explanation || "No explanation available.",
     invalidation: edge.invalidation || "—",
     noTrade: !!edge.no_trade_warning,
-    confPct,
+    confPct: confPct,
     confColor: confidenceColor(conf),
     confText: (conf >= 0.7 ? "High" : conf >= 0.4 ? "Medium" : "Low") + " (" + confPct + "%)",
     lastUpdate: fmtApiTime(edge.current_time),

@@ -5,15 +5,22 @@ from typing import Literal
 
 MARKET_DAILY = "daily"
 MARKET_HOURLY = "hourly"
+MARKET_15MIN = "15min"
+MARKET_5MIN = "5min"
 MARKET_RANGE = "range"
 
 _HOURLY_TIME_PATTERN = re.compile(r"\d{1,2}(am|pm)")
+_15MIN_PATTERN = re.compile(r"(updown|up-down)-15m-|(?<!\d)15-?min")
+_5MIN_PATTERN = re.compile(r"(updown|up-down)-5m-|(?<!1)5-?min")
 
 _ASSET_PREFIXES = {
     "bitcoin": "BTC",
     "ethereum": "ETH",
     "solana": "SOL",
     "xrp": "XRP",
+    "btc": "BTC",
+    "eth": "ETH",
+    "sol": "SOL",
 }
 
 
@@ -41,11 +48,15 @@ def normalize_slug(url_or_slug: str) -> str | None:
     return None
 
 
-def get_market_type(slug: str) -> Literal["daily", "hourly", "range"] | None:
+def get_market_type(slug: str) -> Literal["daily", "hourly", "15min", "5min", "range"] | None:
     """Infer Synth market type from slug. Returns None if not recognizable."""
     if not slug:
         return None
     slug_lower = slug.lower()
+    if _5MIN_PATTERN.search(slug_lower):
+        return MARKET_5MIN
+    if _15MIN_PATTERN.search(slug_lower):
+        return MARKET_15MIN
     if "up-or-down" in slug_lower and _HOURLY_TIME_PATTERN.search(slug_lower):
         return MARKET_HOURLY
     if "up-or-down" in slug_lower and "on-" in slug_lower:

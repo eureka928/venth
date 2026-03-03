@@ -185,3 +185,46 @@ class TestRangeAnalysis:
         sel = _bracket("[66000, 68000]", 0.40, 0.40)
         r = EdgeAnalyzer().analyze_range(sel, [sel])
         assert r.no_trade is True
+
+
+class TestSingleHorizonAnalysis:
+    def test_basic_single_horizon(self):
+        data = _daily(0.55, 0.50)
+        r = EdgeAnalyzer(data, None).analyze_single_horizon(data, horizon="15min")
+        assert isinstance(r, AnalysisResult)
+        assert r.primary.horizon == "15min"
+        assert r.primary.edge_pct == 5.0
+        assert r.primary.signal == "underpriced"
+
+    def test_single_horizon_with_reference(self):
+        primary = _daily(0.55, 0.50)
+        ref = _daily(0.54, 0.50)
+        r = EdgeAnalyzer(primary, ref).analyze_single_horizon(primary, horizon="5min")
+        assert r.secondary is not None
+        assert "confirms" in r.explanation.lower() or "higher" in r.explanation.lower()
+
+    def test_single_horizon_conflict_with_reference(self):
+        primary = _daily(0.55, 0.50)
+        ref = _daily(0.44, 0.50)
+        r = EdgeAnalyzer(primary, ref).analyze_single_horizon(primary, horizon="15min")
+        assert r.no_trade is True
+        assert r.strength == "none"
+        assert "conflict" in r.explanation.lower()
+
+    def test_single_horizon_no_reference(self):
+        data = _daily(0.50, 0.50)
+        r = EdgeAnalyzer(data, None).analyze_single_horizon(data, horizon="5min")
+        assert r.secondary is None
+        assert r.primary.signal == "fair"
+        assert "agree" in r.explanation.lower()
+
+    def test_single_horizon_invalidation_uses_horizon(self):
+        data = _daily(0.55, 0.50)
+        r = EdgeAnalyzer(data, None).analyze_single_horizon(data, horizon="5min")
+        assert "5min" in r.invalidation
+
+    def test_single_horizon_confidence_with_percentiles(self):
+        data = _daily(0.55, 0.50)
+        pct_narrow = _pct(100, 99.5, 100, 100.5)
+        r = EdgeAnalyzer(data, None, pct_narrow, pct_narrow).analyze_single_horizon(data)
+        assert r.confidence_score >= 0.7

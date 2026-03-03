@@ -1,0 +1,20 @@
+{
+  "slug": "sol-updown-15m-1772204400",
+  "start_price": 142.85,
+  "current_time": "2026-02-27T15:04:21+00:00",
+  "current_price": 141.92,
+  "current_outcome": "Down",
+  "synth_probability_up": 0.2845,
+  "synth_outcome": "Down",
+  "polymarket_probability_up": 0.38,
+  "polymarket_outcome": "Down",
+  "event_start_time": "2026-02-27T15:00:00+00:00",
+  "event_end_time": "2026-02-27T15:15:00+00:00",
+  "best_bid_price": 0.37,
+  "best_ask_price": 0.39,
+  "best_bid_size": 89.0,
+  "best_ask_size": 201.3,
+  "polymarket_last_trade_time": "2026-02-27T14:57:18+00:00",
+  "polymarket_last_trade_price": 0.38,
+  "polymarket_last_trade_outcome": "Down"
+}
