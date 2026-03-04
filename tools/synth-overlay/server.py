@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request
 from synth_client import SynthClient
 
 from analyzer import EdgeAnalyzer
-from edge import edge_from_range_bracket
+from edge import edge_from_range_bracket, signal_from_edge
 from matcher import asset_from_slug, get_market_type, normalize_slug
 
 app = Flask(__name__)
@@ -46,6 +46,34 @@ def health():
 
 
 _HORIZON_MAP = {"5min": "5min", "15min": "15min", "hourly": "1h", "daily": "24h"}
+_TF_KEYS = {"5min": "5m", "15min": "15m", "hourly": "1h", "daily": "24h"}
+
+
+def _compute_all_timeframe_edges(client: SynthClient, asset: str, live_prob_up=None, primary_market_type=None):
+    """Compute simple edge for all 4 timeframes so the UI can show them all."""
+    fetchers = {
+        "5min": client.get_polymarket_5min,
+        "15min": client.get_polymarket_15min,
+        "hourly": client.get_polymarket_hourly,
+        "daily": client.get_polymarket_daily,
+    }
+    primary_tf = _TF_KEYS.get(primary_market_type)
+    timeframes = {}
+    for mtype, fetcher in fetchers.items():
+        tf_key = _TF_KEYS[mtype]
+        try:
+            data = fetcher(asset)
+            synth = data.get("synth_probability_up")
+            poly = data.get("polymarket_probability_up")
+            if live_prob_up is not None and tf_key == primary_tf:
+                poly = live_prob_up
+            if synth is not None and poly is not None:
+                edge = round((float(synth) - float(poly)) * 100, 1)
+                sig = signal_from_edge(edge)
+                timeframes[tf_key] = {"edge_pct": edge, "signal": sig}
+        except Exception:
+            pass
+    return timeframes
 
 
 def _fetch_updown_pair(client: SynthClient, asset: str, market_type: str) -> tuple[dict, dict]:
@@ -119,6 +147,7 @@ def _handle_updown_market(
             "polymarket_probability_up": primary_src.get("polymarket_probability_up"),
             "current_time": primary_src.get("current_time"),
             "live_price_used": live_prob_up is not None,
+            "timeframes": _compute_all_timeframe_edges(client, asset, live_prob_up, market_type),
         })
 
     # 5min/15min: single-horizon analysis with optional reference context
@@ -149,6 +178,7 @@ def _handle_updown_market(
         )
         resp["ref_edge_pct"] = result.secondary.edge_pct
         resp["ref_signal"] = result.secondary.signal
+    resp["timeframes"] = _compute_all_timeframe_edges(client, asset, live_prob_up, market_type)
     return jsonify(resp)
 
 

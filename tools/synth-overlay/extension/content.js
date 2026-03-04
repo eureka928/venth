@@ -67,31 +67,16 @@
    * Scrape live Polymarket prices from the DOM.
    * Returns { upPrice: 0.XX, downPrice: 0.XX } or null if not found.
    *
-   * Three strategies in order of reliability:
-   * 1. __NEXT_DATA__ JSON (structured, from Next.js SSR)
-   * 2. Compact DOM elements with anchored "Up XX¢" patterns
-   * 3. Price-only leaf elements with parent context walk
+   * Three strategies in order of freshness:
+   * 1. Compact DOM elements with anchored "Up XX¢" patterns (live React state)
+   * 2. Price-only leaf elements with parent context walk (live React state)
+   * 3. __NEXT_DATA__ JSON (fallback — SSR snapshot, may be stale)
    */
   function scrapeLivePrices() {
     var upPrice = null;
     var downPrice = null;
 
-    // Strategy 1: Parse __NEXT_DATA__ for structured market data
-    try {
-      var ndEl = document.getElementById("__NEXT_DATA__");
-      if (ndEl) {
-        var nd = JSON.parse(ndEl.textContent);
-        var fromND = findOutcomePricesInObject(nd);
-        if (fromND && validatePricePair(fromND.upPrice, fromND.downPrice)) {
-          console.log("[Synth-Overlay] Prices from __NEXT_DATA__:", fromND);
-          return fromND;
-        }
-      }
-    } catch (e) {
-      console.log("[Synth-Overlay] __NEXT_DATA__ parse failed:", e.message);
-    }
-
-    // Strategy 2: Scan compact DOM elements for anchored "Up XX¢" / "Down XX¢"
+    // Strategy 1: Scan compact DOM elements for anchored "Up XX¢" / "Down XX¢"
     // Only considers elements with very short text (< 20 chars) to avoid false positives.
     // Regex is anchored (^...$) so entire text must match the pattern.
     var els = document.querySelectorAll("button, a, span, div, p, [role='button']");
@@ -121,7 +106,7 @@
       return { upPrice: upPrice, downPrice: downPrice };
     }
 
-    // Strategy 3: Find leaf elements containing just "XX¢" or "XX%",
+    // Strategy 2: Find leaf elements containing just "XX¢" or "XX%",
     // then walk up the DOM tree to find "Up" or "Down" context.
     upPrice = null;
     downPrice = null;
@@ -150,12 +135,28 @@
       return { upPrice: upPrice, downPrice: downPrice };
     }
 
-    // If only one price found, infer the other (no sum validation possible)
+    // If only one DOM price found, infer the other
     if (upPrice !== null && upPrice >= 0.01 && upPrice <= 0.99) {
       return { upPrice: upPrice, downPrice: 1 - upPrice };
     }
     if (downPrice !== null && downPrice >= 0.01 && downPrice <= 0.99) {
       return { upPrice: 1 - downPrice, downPrice: downPrice };
+    }
+
+    // Strategy 3 (FALLBACK): Parse __NEXT_DATA__ — SSR snapshot, may be stale
+    // Only used when DOM scraping fails (e.g. page still loading).
+    try {
+      var ndEl = document.getElementById("__NEXT_DATA__");
+      if (ndEl) {
+        var nd = JSON.parse(ndEl.textContent);
+        var fromND = findOutcomePricesInObject(nd);
+        if (fromND && validatePricePair(fromND.upPrice, fromND.downPrice)) {
+          console.log("[Synth-Overlay] Prices from __NEXT_DATA__ (fallback):", fromND);
+          return fromND;
+        }
+      }
+    } catch (e) {
+      console.log("[Synth-Overlay] __NEXT_DATA__ parse failed:", e.message);
     }
 
     console.log("[Synth-Overlay] Could not scrape live prices from DOM");

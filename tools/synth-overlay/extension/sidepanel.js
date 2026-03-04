@@ -151,7 +151,7 @@ function updateWithLivePrice(livePrices) {
   
   // Recalculate edge with live price
   var edgePct = calcEdgePct(synthProbUp, polyProbUp);
-  var signal = edgePct > 0 ? "BUY" : edgePct < 0 ? "SELL" : "HOLD";
+  var signal = edgePct > 0 ? "underpriced" : edgePct < 0 ? "overpriced" : "fair";
   
   // Update Polymarket prices
   els.polyUp.textContent = fmtCentsFromProb(polyProbUp);
@@ -236,15 +236,19 @@ async function refresh() {
   var deltaUp = fmtDelta(synthProbUp, polyProbUp);
   var deltaDown = fmtDelta(synthProbUp != null ? 1 - synthProbUp : null, polyProbDown);
 
-  // Build signals from response - map current market type to its slot
+  // Build signals from all timeframes returned by server
   var signals = { "5m": "—", "15m": "—", "1h": "—", "24h": "—" };
   var tfKey = mtype === "5min" ? "5m" : mtype === "15min" ? "15m" : mtype === "hourly" ? "1h" : "24h";
-  signals[tfKey] = (edge.signal || "—") + " " + fmtEdge(edge.edge_pct);
-  
-  // If we have dual-horizon data, populate both
-  if (edge.signal_1h && edge.signal_24h) {
-    signals["1h"] = edge.signal_1h + " " + fmtEdge(edge.edge_1h_pct);
-    signals["24h"] = edge.signal_24h + " " + fmtEdge(edge.edge_24h_pct);
+  if (edge.timeframes) {
+    for (var tf in edge.timeframes) {
+      var tfData = edge.timeframes[tf];
+      if (tfData && tfData.signal != null) {
+        signals[tf] = tfData.signal + " " + fmtEdge(tfData.edge_pct);
+      }
+    }
+  } else {
+    // Fallback: use primary edge only
+    signals[tfKey] = (edge.signal || "—") + " " + fmtEdge(edge.edge_pct);
   }
 
   var liveStatus = ctx.livePrices ? " (Live)" : "";
