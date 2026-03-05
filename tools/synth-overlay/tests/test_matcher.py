@@ -33,6 +33,20 @@ def test_get_market_type_hourly():
     assert get_market_type("btc-up-or-down-march-1-3pm-et") == "hourly"
 
 
+def test_get_market_type_15min():
+    assert get_market_type("btc-updown-15m-1772204400") == "15min"
+    assert get_market_type("eth-updown-15m-1772204400") == "15min"
+    assert get_market_type("sol-up-down-15m-1772204400") == "15min"
+    assert get_market_type("bitcoin-15min-market") == "15min"
+
+
+def test_get_market_type_5min():
+    assert get_market_type("btc-updown-5m-1772205000") == "5min"
+    assert get_market_type("eth-updown-5m-1772205000") == "5min"
+    assert get_market_type("sol-up-down-5m-1772205000") == "5min"
+    assert get_market_type("bitcoin-5min-market") == "5min"
+
+
 def test_get_market_type_range():
     assert get_market_type("bitcoin-price-on-february-26") == "range"
 
@@ -44,6 +58,8 @@ def test_get_market_type_unsupported():
 def test_is_supported():
     assert is_supported("bitcoin-up-or-down-on-february-26") is True
     assert is_supported("bitcoin-price-on-february-26") is True
+    assert is_supported("btc-updown-15m-1772204400") is True
+    assert is_supported("eth-updown-5m-1772205000") is True
     assert is_supported("unknown-market") is False
 
 
@@ -54,8 +70,13 @@ def test_asset_from_slug():
     assert asset_from_slug("xrp-up-or-down-on-march-1") == "XRP"
 
 
+def test_asset_from_slug_short_prefixes():
+    assert asset_from_slug("btc-up-or-down-on-march-1") == "BTC"
+    assert asset_from_slug("eth-updown-15m-1772204400") == "ETH"
+    assert asset_from_slug("sol-updown-5m-1772205000") == "SOL"
+
+
 def test_asset_from_slug_unknown():
-    assert asset_from_slug("btc-up-or-down-on-march-1") is None
     assert asset_from_slug("random-slug") is None
     assert asset_from_slug("") is None
     assert asset_from_slug(None) is None

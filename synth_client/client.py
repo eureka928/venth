@@ -219,28 +219,68 @@ class SynthClient:
 
     # ─── Polymarket ──────────────────────────────────────────────────
 
-    def get_polymarket_daily(self) -> dict:
+    def get_polymarket_daily(self, asset: str = "BTC") -> dict:
         """
         Get daily up/down comparison between Synth forecasts and Polymarket prices.
 
+        Args:
+            asset: Asset symbol (BTC, ETH, SOL). Default: BTC
+
         Returns:
-            Dict with Synth vs Polymarket probability comparison (BTC)
+            Dict with Synth vs Polymarket probability comparison
         """
         return self._get(
             "/insights/polymarket/up-down/daily",
-            ["polymarket", "up_down_daily.json"],
+            ["polymarket", f"up_down_daily_{asset}.json"],
+            params={"asset": asset},
         )
 
-    def get_polymarket_hourly(self) -> dict:
+    def get_polymarket_hourly(self, asset: str = "BTC") -> dict:
         """
         Get hourly up/down comparison between Synth forecasts and Polymarket prices.
 
+        Args:
+            asset: Asset symbol (BTC, ETH, SOL). Default: BTC
+
         Returns:
-            Dict with Synth vs Polymarket probability comparison (BTC)
+            Dict with Synth vs Polymarket probability comparison
         """
         return self._get(
             "/insights/polymarket/up-down/hourly",
-            ["polymarket", "up_down_hourly.json"],
+            ["polymarket", f"up_down_hourly_{asset}.json"],
+            params={"asset": asset},
+        )
+
+    def get_polymarket_15min(self, asset: str = "BTC") -> dict:
+        """
+        Get 15-minute up/down comparison between Synth forecasts and Polymarket prices.
+
+        Args:
+            asset: Asset symbol (BTC, ETH, SOL). Default: BTC
+
+        Returns:
+            Dict with Synth vs Polymarket probability comparison
+        """
+        return self._get(
+            "/insights/polymarket/up-down/15min",
+            ["polymarket", f"up_down_15min_{asset}.json"],
+            params={"asset": asset},
+        )
+
+    def get_polymarket_5min(self, asset: str = "BTC") -> dict:
+        """
+        Get 5-minute up/down comparison between Synth forecasts and Polymarket prices.
+
+        Args:
+            asset: Asset symbol (BTC, ETH, SOL). Default: BTC
+
+        Returns:
+            Dict with Synth vs Polymarket probability comparison
+        """
+        return self._get(
+            "/insights/polymarket/up-down/5min",
+            ["polymarket", f"up_down_5min_{asset}.json"],
+            params={"asset": asset},
         )
 
     def get_polymarket_range(self) -> list:

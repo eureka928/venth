@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request
 from synth_client import SynthClient
 
 from analyzer import EdgeAnalyzer
-from edge import edge_from_range_bracket
+from edge import edge_from_range_bracket, signal_from_edge
 from matcher import asset_from_slug, get_market_type, normalize_slug
 
 app = Flask(__name__)
@@ -45,6 +45,143 @@ def health():
     return jsonify({"status": "ok", "mock": get_client().mock_mode})
 
 
+_HORIZON_MAP = {"5min": "5min", "15min": "15min", "hourly": "1h", "daily": "24h"}
+_TF_KEYS = {"5min": "5m", "15min": "15m", "hourly": "1h", "daily": "24h"}
+
+
+def _compute_all_timeframe_edges(client: SynthClient, asset: str, live_prob_up=None, primary_market_type=None):
+    """Compute simple edge for all 4 timeframes so the UI can show them all."""
+    fetchers = {
+        "5min": client.get_polymarket_5min,
+        "15min": client.get_polymarket_15min,
+        "hourly": client.get_polymarket_hourly,
+        "daily": client.get_polymarket_daily,
+    }
+    primary_tf = _TF_KEYS.get(primary_market_type)
+    timeframes = {}
+    for mtype, fetcher in fetchers.items():
+        tf_key = _TF_KEYS[mtype]
+        try:
+            data = fetcher(asset)
+            synth = data.get("synth_probability_up")
+            poly = data.get("polymarket_probability_up")
+            if live_prob_up is not None and tf_key == primary_tf:
+                poly = live_prob_up
+            if synth is not None and poly is not None:
+                edge = round((float(synth) - float(poly)) * 100, 1)
+                sig = signal_from_edge(edge)
+                timeframes[tf_key] = {"edge_pct": edge, "signal": sig}
+        except Exception:
+            pass
+    return timeframes
+
+
+def _fetch_updown_pair(client: SynthClient, asset: str, market_type: str) -> tuple[dict, dict]:
+    """Fetch primary + reference up/down data for cross-horizon context."""
+    fetchers = {
+        "5min": (client.get_polymarket_5min, client.get_polymarket_15min),
+        "15min": (client.get_polymarket_15min, client.get_polymarket_hourly),
+        "hourly": (client.get_polymarket_hourly, client.get_polymarket_daily),
+        "daily": (client.get_polymarket_daily, client.get_polymarket_hourly),
+    }
+    primary_fn, ref_fn = fetchers[market_type]
+    primary = primary_fn(asset)
+    try:
+        reference = ref_fn(asset)
+    except Exception:
+        reference = None
+    return primary, reference
+
+
+def _handle_updown_market(
+    client: SynthClient, slug: str, asset: str, market_type: str, live_prob_up: float | None = None
+):
+    """Handle up/down markets for any supported asset and horizon.
+    
+    Args:
+        live_prob_up: Real-time Polymarket price scraped from DOM. If provided,
+                      overrides the API's polymarket_probability_up for edge calculation.
+    """
+    primary_data, reference_data = _fetch_updown_pair(client, asset, market_type)
+
+    # Override Polymarket probability with live DOM price if available
+    if live_prob_up is not None:
+        primary_data = dict(primary_data)  # Copy to avoid mutating cached data
+        primary_data["polymarket_probability_up"] = live_prob_up
+
+    pct_1h = None
+    pct_24h = None
+    try:
+        pct_1h = client.get_prediction_percentiles(asset, horizon="1h")
+        pct_24h = client.get_prediction_percentiles(asset, horizon="24h")
+    except Exception:
+        pass
+
+    primary_horizon = _HORIZON_MAP[market_type]
+
+    # Daily/hourly: preserve dual-horizon analysis (1h vs 24h cross-comparison)
+    if market_type in ("daily", "hourly") and reference_data:
+        # primary_data already has live_prob_up override applied above
+        daily = primary_data if market_type == "daily" else reference_data
+        hourly = reference_data if market_type == "daily" else primary_data
+        analyzer = EdgeAnalyzer(daily, hourly, pct_1h, pct_24h)
+        result = analyzer.analyze(primary_horizon=primary_horizon)
+        primary_src = daily if market_type == "daily" else hourly
+        return jsonify({
+            "slug": slug,
+            "asset": asset,
+            "horizon": primary_horizon,
+            "market_type": market_type,
+            "edge_pct": result.primary.edge_pct,
+            "signal": result.primary.signal,
+            "strength": result.strength,
+            "confidence_score": result.confidence_score,
+            "edge_1h_pct": result.secondary.edge_pct if primary_horizon == "24h" else result.primary.edge_pct,
+            "signal_1h": result.secondary.signal if primary_horizon == "24h" else result.primary.signal,
+            "edge_24h_pct": result.primary.edge_pct if primary_horizon == "24h" else result.secondary.edge_pct,
+            "signal_24h": result.primary.signal if primary_horizon == "24h" else result.secondary.signal,
+            "no_trade_warning": result.no_trade,
+            "explanation": result.explanation,
+            "invalidation": result.invalidation,
+            "synth_probability_up": primary_src.get("synth_probability_up"),
+            "polymarket_probability_up": primary_src.get("polymarket_probability_up"),
+            "current_time": primary_src.get("current_time"),
+            "live_price_used": live_prob_up is not None,
+            "timeframes": _compute_all_timeframe_edges(client, asset, live_prob_up, market_type),
+        })
+
+    # 5min/15min: single-horizon analysis with optional reference context
+    analyzer = EdgeAnalyzer(primary_data, reference_data, pct_1h, pct_24h)
+    result = analyzer.analyze_single_horizon(primary_data, horizon=primary_horizon)
+
+    resp = {
+        "slug": slug,
+        "asset": asset,
+        "horizon": primary_horizon,
+        "market_type": market_type,
+        "edge_pct": result.primary.edge_pct,
+        "signal": result.primary.signal,
+        "strength": result.strength,
+        "confidence_score": result.confidence_score,
+        "no_trade_warning": result.no_trade,
+        "explanation": result.explanation,
+        "invalidation": result.invalidation,
+        "synth_probability_up": primary_data.get("synth_probability_up"),
+        "polymarket_probability_up": primary_data.get("polymarket_probability_up"),
+        "current_time": primary_data.get("current_time"),
+        "live_price_used": live_prob_up is not None,
+    }
+    # Include reference horizon context when available
+    if reference_data and result.secondary:
+        resp["ref_horizon"] = _HORIZON_MAP.get(
+            {"5min": "15min", "15min": "hourly"}.get(market_type, ""), ""
+        )
+        resp["ref_edge_pct"] = result.secondary.edge_pct
+        resp["ref_signal"] = result.secondary.signal
+    resp["timeframes"] = _compute_all_timeframe_edges(client, asset, live_prob_up, market_type)
+    return jsonify(resp)
+
+
 @app.route("/api/edge", methods=["GET", "OPTIONS"])
 def edge():
     if request.method == "OPTIONS":
@@ -57,49 +194,17 @@ def edge():
     if not market_type:
         return jsonify({"error": "Unsupported market", "slug": slug}), 404
     asset = asset_from_slug(slug) or "BTC"
+    # Live Polymarket price scraped from DOM (real-time, avoids API latency)
+    live_prob_up = request.args.get("live_prob_up")
+    if live_prob_up:
+        try:
+            live_prob_up = float(live_prob_up)
+        except (ValueError, TypeError):
+            live_prob_up = None
     try:
         client = get_client()
-        if market_type in ("daily", "hourly"):
-            if asset != "BTC":
-                return jsonify({
-                    "error": f"Only BTC up-or-down markets are currently supported. "
-                             f"This market appears to be {asset}.",
-                    "slug": slug,
-                    "asset": asset,
-                }), 404
-            daily_data = client.get_polymarket_daily()
-            hourly_data = client.get_polymarket_hourly()
-            pct_1h = None
-            pct_24h = None
-            try:
-                pct_1h = client.get_prediction_percentiles(asset, horizon="1h")
-                pct_24h = client.get_prediction_percentiles(asset, horizon="24h")
-            except Exception:
-                pass
-            primary_horizon = "24h" if market_type == "daily" else "1h"
-            analyzer = EdgeAnalyzer(daily_data, hourly_data, pct_1h, pct_24h)
-            result = analyzer.analyze(primary_horizon=primary_horizon)
-            primary_data = daily_data if market_type == "daily" else hourly_data
-            return jsonify({
-                # Echo requested slug so extension can run on active matching markets,
-                # even when mock payload carries a different representative slug.
-                "slug": slug,
-                "horizon": primary_horizon,
-                "edge_pct": result.primary.edge_pct,
-                "signal": result.primary.signal,
-                "strength": result.strength,
-                "confidence_score": result.confidence_score,
-                "edge_1h_pct": result.secondary.edge_pct if primary_horizon == "24h" else result.primary.edge_pct,
-                "signal_1h": result.secondary.signal if primary_horizon == "24h" else result.primary.signal,
-                "edge_24h_pct": result.primary.edge_pct if primary_horizon == "24h" else result.secondary.edge_pct,
-                "signal_24h": result.primary.signal if primary_horizon == "24h" else result.secondary.signal,
-                "no_trade_warning": result.no_trade,
-                "explanation": result.explanation,
-                "invalidation": result.invalidation,
-                "synth_probability_up": primary_data.get("synth_probability_up"),
-                "polymarket_probability_up": primary_data.get("polymarket_probability_up"),
-                "current_time": primary_data.get("current_time"),
-            })
+        if market_type in ("daily", "hourly", "15min", "5min"):
+            return _handle_updown_market(client, slug, asset, market_type, live_prob_up)
         # range
         data = client.get_polymarket_range()
         if not isinstance(data, list):

@@ -1,0 +1,21 @@
+{
+  "slug": "ethereum-up-or-down-on-february-26",
+  "start_price": 3280.45,
+  "current_time": "2026-02-25T23:45:17.526062+00:00",
+  "current_price": 3245.82,
+  "current_outcome": "Down",
+  "synth_probability_up": 0.3825,
+  "synth_outcome": "Down",
+  "polymarket_probability_up": 0.415,
+  "polymarket_outcome": "Down",
+  "event_start_time": "2026-02-25T17:00:00+00:00",
+  "event_end_time": "2026-02-26T17:00:00+00:00",
+  "event_creation_time": "2026-02-24T17:02:40.731726+00:00",
+  "best_bid_price": 0.41,
+  "best_ask_price": 0.42,
+  "best_bid_size": 890.0,
+  "best_ask_size": 1250.0,
+  "polymarket_last_trade_time": "2026-02-25T23:42:15+00:00",
+  "polymarket_last_trade_price": 0.415,
+  "polymarket_last_trade_outcome": "Down"
+}

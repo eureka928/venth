@@ -247,6 +247,91 @@ class EdgeAnalyzer:
             )
         return f"No meaningful edge on {title} — bracket is fairly priced."
 
+    def analyze_single_horizon(self, data: dict, horizon: str = "24h") -> AnalysisResult:
+        """Analyze a single up/down market with optional reference-horizon context."""
+        edge = self._extract_edge(data, horizon)
+        strength = strength_from_edge(edge.edge_pct)
+
+        ref_edge = None
+        if self._hourly:
+            try:
+                ref_edge = self._extract_edge(self._hourly, "ref")
+            except (KeyError, ValueError):
+                pass
+
+        if ref_edge and signals_conflict(edge.signal, ref_edge.signal):
+            strength = "none"
+
+        spread_1h = self._percentile_spread(self._pct_1h)
+        spread_24h = self._percentile_spread(self._pct_24h)
+        confidence = self.compute_confidence(spread_1h, spread_24h)
+
+        high_uncertainty = any(
+            s is not None and s > 0.05 for s in (spread_1h, spread_24h)
+        )
+        conflict = ref_edge is not None and signals_conflict(edge.signal, ref_edge.signal)
+        no_trade = conflict or strength == "none" or high_uncertainty
+
+        bias = self._directional_bias(self._pct_24h) or self._directional_bias(self._pct_1h)
+        explanation = self._build_single_explanation(edge, ref_edge, confidence, horizon)
+        invalidation = self._build_short_invalidation(edge, bias, horizon)
+
+        return AnalysisResult(
+            primary=edge,
+            secondary=ref_edge,
+            strength=strength,
+            confidence_score=confidence,
+            no_trade=no_trade,
+            explanation=explanation,
+            invalidation=invalidation,
+        )
+
+    def _build_single_explanation(
+        self, edge: HorizonEdge, ref_edge: HorizonEdge | None, confidence: float, horizon: str
+    ) -> str:
+        """Build explanation for single-horizon analysis with optional reference context."""
+        parts = []
+        if edge.signal == "fair":
+            parts.append(f"Synth and Polymarket agree closely on this {horizon} market.")
+        else:
+            direction = "higher" if edge.edge_pct > 0 else "lower"
+            parts.append(
+                f"Synth forecasts {direction} probability than Polymarket "
+                f"by {abs(edge.edge_pct):.1f}pp on the {horizon} horizon."
+            )
+        if ref_edge and ref_edge.signal != "fair":
+            if signals_conflict(edge.signal, ref_edge.signal):
+                parts.append("Reference horizon disagrees — signals conflict.")
+            else:
+                parts.append(
+                    f"Reference horizon confirms with {abs(ref_edge.edge_pct):.1f}pp edge."
+                )
+        if confidence >= 0.7:
+            parts.append("Forecast distribution is narrow — high confidence.")
+        elif confidence <= 0.3:
+            parts.append("Forecast distribution is wide — low confidence, treat with caution.")
+        return " ".join(parts)
+
+    def _build_short_invalidation(self, edge: HorizonEdge, bias: float | None, horizon: str) -> str:
+        """Build invalidation text appropriate for short-term markets."""
+        parts = []
+        if edge.signal == "underpriced":
+            parts.append(
+                f"This {horizon} edge invalidates if price reverses, "
+                f"pushing Synth probability below market."
+            )
+        elif edge.signal == "overpriced":
+            parts.append(
+                f"This {horizon} edge invalidates if price moves up, "
+                f"pushing Synth probability above market."
+            )
+        else:
+            parts.append("No meaningful edge to invalidate — market is fairly priced.")
+        if bias is not None and abs(bias) > 0.02:
+            direction = "upward" if bias > 0 else "downward"
+            parts.append(f"Synth median shows a {direction} bias of {abs(bias)*100:.1f}%.")
+        return " ".join(parts)
+
     def analyze(self, primary_horizon: str = "24h") -> AnalysisResult:
         if not self._daily or not self._hourly:
             raise ValueError("Both daily and hourly data required for analysis")

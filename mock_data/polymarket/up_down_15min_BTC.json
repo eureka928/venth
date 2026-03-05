@@ -1,0 +1,20 @@
+{
+  "slug": "btc-updown-15m-1772204400",
+  "start_price": 68176.05,
+  "current_time": "2026-02-27T15:04:21+00:00",
+  "current_price": 67936.60,
+  "current_outcome": "Down",
+  "synth_probability_up": 0.0969,
+  "synth_outcome": "Down",
+  "polymarket_probability_up": 0.475,
+  "polymarket_outcome": "Down",
+  "event_start_time": "2026-02-27T15:00:00+00:00",
+  "event_end_time": "2026-02-27T15:15:00+00:00",
+  "best_bid_price": 0.47,
+  "best_ask_price": 0.48,
+  "best_bid_size": 218.0,
+  "best_ask_size": 445.47,
+  "polymarket_last_trade_time": "2026-02-27T14:59:57+00:00",
+  "polymarket_last_trade_price": 0.4582,
+  "polymarket_last_trade_outcome": "Down"
+}

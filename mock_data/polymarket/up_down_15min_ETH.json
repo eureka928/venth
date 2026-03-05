@@ -1,0 +1,20 @@
+{
+  "slug": "eth-updown-15m-1772204400",
+  "start_price": 3245.12,
+  "current_time": "2026-02-27T15:04:21+00:00",
+  "current_price": 3238.45,
+  "current_outcome": "Down",
+  "synth_probability_up": 0.3521,
+  "synth_outcome": "Down",
+  "polymarket_probability_up": 0.42,
+  "polymarket_outcome": "Down",
+  "event_start_time": "2026-02-27T15:00:00+00:00",
+  "event_end_time": "2026-02-27T15:15:00+00:00",
+  "best_bid_price": 0.41,
+  "best_ask_price": 0.43,
+  "best_bid_size": 156.0,
+  "best_ask_size": 312.5,
+  "polymarket_last_trade_time": "2026-02-27T14:58:32+00:00",
+  "polymarket_last_trade_price": 0.42,
+  "polymarket_last_trade_outcome": "Down"
+}
