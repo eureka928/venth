@@ -221,8 +221,43 @@
     });
   }
 
-  // Also poll every 500ms as backup for any missed mutations
-  setInterval(checkAndBroadcastPrices, 500);
+  // Detect SPA navigation (Polymarket uses Next.js client-side routing)
+  var lastSlug = slugFromPage();
+  function checkUrlChange() {
+    var newSlug = slugFromPage();
+    if (newSlug !== lastSlug) {
+      console.log("[Synth-Overlay] URL changed:", lastSlug, "->", newSlug);
+      lastSlug = newSlug;
+      lastPrices = { upPrice: null, downPrice: null };
+      chrome.runtime.sendMessage({
+        type: "synth:urlChanged",
+        slug: newSlug,
+        url: window.location.href,
+        timestamp: Date.now()
+      }).catch(function() {});
+      // Immediately scrape and broadcast new prices
+      setTimeout(checkAndBroadcastPrices, 200);
+    }
+  }
+
+  // Intercept history.pushState and replaceState for SPA navigation
+  var origPushState = history.pushState;
+  var origReplaceState = history.replaceState;
+  history.pushState = function() {
+    origPushState.apply(this, arguments);
+    checkUrlChange();
+  };
+  history.replaceState = function() {
+    origReplaceState.apply(this, arguments);
+    checkUrlChange();
+  };
+  window.addEventListener("popstate", checkUrlChange);
+
+  // Also poll every 500ms as backup for any missed mutations or navigation
+  setInterval(function() {
+    checkAndBroadcastPrices();
+    checkUrlChange();
+  }, 500);
 
   // Initial broadcast
   setTimeout(checkAndBroadcastPrices, 500);

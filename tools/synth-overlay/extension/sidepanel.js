@@ -5,6 +5,7 @@ const API_BASE = "http://127.0.0.1:8765";
 // Cache last Synth data for instant recalculation when live prices change
 var cachedSynthData = null;
 var cachedMarketType = null;
+var currentSlug = null;
 
 const els = {
   statusText: document.getElementById("statusText"),
@@ -220,6 +221,7 @@ async function refresh() {
   // Cache Synth data for instant live price updates
   cachedSynthData = edge;
   cachedMarketType = mtype;
+  currentSlug = ctx.slug;
 
   // Log live price status for debugging
   console.log("[Synth-Overlay] Edge response:", { 
@@ -310,11 +312,36 @@ function stopPollProgress() {
   els.pollProgress.style.width = "0%";
 }
 
-// Listen for real-time price updates from content script (push-based)
+// Listen for real-time price updates and URL changes from content script
 chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-  if (message && message.type === "synth:priceUpdate") {
+  if (!message) return;
+  if (message.type === "synth:priceUpdate") {
     console.log("[Synth-Overlay] Received live price update (push):", message.prices);
     updateWithLivePrice(message.prices);
+  }
+  if (message.type === "synth:urlChanged") {
+    console.log("[Synth-Overlay] URL changed detected:", message.slug);
+    if (message.slug !== currentSlug) {
+      cachedSynthData = null;
+      cachedMarketType = null;
+      currentSlug = null;
+      lastPollPrices = { upPrice: null, downPrice: null };
+      stopPollProgress();
+      refresh();
+    }
+  }
+});
+
+// Also detect tab URL changes (full navigations)
+chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+  if (changeInfo.url && tab.active && tab.url && tab.url.startsWith("https://polymarket.com/")) {
+    console.log("[Synth-Overlay] Tab URL updated:", changeInfo.url);
+    cachedSynthData = null;
+    cachedMarketType = null;
+    currentSlug = null;
+    lastPollPrices = { upPrice: null, downPrice: null };
+    stopPollProgress();
+    refresh();
   }
 });
 
