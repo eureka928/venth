@@ -309,3 +309,58 @@ button {
   text-align: center;
   padding: 8px 0;
 }
+
+/* Toggle small variant */
+.toggle-sm { width: 36px; height: 18px; }
+.toggle-sm .toggle-slider:before { width: 14px; height: 14px; }
+.toggle-sm input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+/* Notification history */
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #374151;
+}
+
+.clear-history-btn {
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.clear-history-btn:hover { color: #ef4444; }
+
+.alert-history {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.history-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #1f2937;
+  font-size: 11px;
+}
+.history-item:last-child { border-bottom: none; }
+
+.history-title {
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-bottom: 2px;
+}
+
+.history-meta {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.history-empty {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  padding: 6px 0;
+}

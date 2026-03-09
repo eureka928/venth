@@ -83,8 +83,20 @@
             <span class="unit">pp</span>
           </div>
         </div>
+        <div class="alert-row">
+          <span>Auto-dismiss</span>
+          <label class="toggle toggle-sm">
+            <input type="checkbox" id="autoDismiss" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <button id="watchBtn" class="watch-btn" disabled>No market loaded</button>
         <div id="watchlist" class="watchlist"></div>
+        <div class="history-header">
+          <span class="label" style="margin-bottom:0;font-size:11px">Recent Alerts</span>
+          <button id="clearHistory" class="clear-history-btn">Clear</button>
+        </div>
+        <div id="alertHistory" class="alert-history"></div>
       </div>
     </section>
 

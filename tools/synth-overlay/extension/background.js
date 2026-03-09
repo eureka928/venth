@@ -13,6 +13,8 @@ var STORE_KEYS = {
   threshold: "synth_alerts_threshold",
   watchlist: "synth_alerts_watchlist",
   cooldowns: "synth_alerts_cooldowns",
+  history: "synth_alerts_history",
+  autoDismiss: "synth_alerts_auto_dismiss",
 };
 
 var COOLDOWN_MS = 5 * 60 * 1000;
@@ -109,8 +111,21 @@ chrome.storage.onChanged.addListener(function (changes, area) {
   if (changes[STORE_KEYS.enabled] || changes[STORE_KEYS.watchlist]) {
     syncAlarmState();
     pollWatchlist();
+    updateBadge();
   }
 });
+
+// ---- Badge ----
+// Show the number of watched markets on the extension icon badge.
+function updateBadge() {
+  loadAlertSettings(function (settings) {
+    var count = settings.enabled ? settings.watchlist.length : 0;
+    var text = count > 0 ? String(count) : "";
+    chrome.action.setBadgeText({ text: text });
+    chrome.action.setBadgeBackgroundColor({ color: "#2563eb" });
+    chrome.action.setBadgeTextColor({ color: "#ffffff" });
+  });
+}
 
 chrome.alarms.onAlarm.addListener(function (alarm) {
   if (alarm.name === ALARM_NAME) pollWatchlist();
@@ -196,15 +211,39 @@ function createEdgeNotification(notifId, item, data) {
     lines.push(data.explanation.length > 120 ? data.explanation.substring(0, 117) + "…" : data.explanation);
   }
 
-  chrome.notifications.create(notifId, {
-    type: "basic",
-    iconUrl: "icon128.png",
+  // Save to notification history
+  var historyEntry = {
+    slug: item.slug,
+    label: item.label || item.slug,
     title: title,
     message: lines.join("\n"),
-    priority: 2,
-    requireInteraction: true,
+    edgePct: edge,
+    signal: signal,
+    timestamp: Date.now(),
+  };
+  var histList = [];
+  chrome.storage.local.get([STORE_KEYS.history], function (result) {
+    histList = Array.isArray(result[STORE_KEYS.history]) ? result[STORE_KEYS.history] : [];
+    histList.unshift(historyEntry);
+    if (histList.length > 10) histList = histList.slice(0, 10);
+    var hObj = {};
+    hObj[STORE_KEYS.history] = histList;
+    chrome.storage.local.set(hObj);
   });
-  console.log("[Synth-Alerts] Fired: " + title);
+
+  // Check auto-dismiss preference
+  chrome.storage.local.get([STORE_KEYS.autoDismiss], function (result) {
+    var autoDismiss = result[STORE_KEYS.autoDismiss] != null ? result[STORE_KEYS.autoDismiss] : false;
+    chrome.notifications.create(notifId, {
+      type: "basic",
+      iconUrl: "icon128.png",
+      title: title,
+      message: lines.join("\n"),
+      priority: 2,
+      requireInteraction: !autoDismiss,
+    });
+    console.log("[Synth-Alerts] Fired: " + title);
+  });
 }
 
 // Focus or open the Polymarket page for the clicked notification
@@ -236,3 +275,4 @@ chrome.notifications.onClicked.addListener(function (notifId) {
 
 // Start polling on service worker startup if alerts were already enabled
 syncAlarmState();
+updateBadge();

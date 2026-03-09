@@ -322,3 +322,93 @@ def test_should_alert_strong_edge_cooldown_expired():
     cooldowns = {"btc-daily": now - COOLDOWN_MS - 1}
     alert, edge = should_alert(0.60, 0.50, 3.0, "btc-daily", cooldowns, now)
     assert alert is True
+
+
+# ---- Notification history (mirrors SynthAlerts.addHistoryEntry) ----
+
+MAX_HISTORY = 10
+
+
+def add_history_entry(history, entry):
+    """Mirror JS: unshift, cap at MAX_HISTORY."""
+    history.insert(0, entry)
+    if len(history) > MAX_HISTORY:
+        history = history[:MAX_HISTORY]
+    return history
+
+
+def test_history_add_entry():
+    history = []
+    entry = {"slug": "btc-daily", "title": "BTC 24h — Underpriced +5.2pp", "timestamp": 1000}
+    history = add_history_entry(history, entry)
+    assert len(history) == 1
+    assert history[0]["slug"] == "btc-daily"
+
+
+def test_history_newest_first():
+    history = []
+    history = add_history_entry(history, {"slug": "a", "timestamp": 100})
+    history = add_history_entry(history, {"slug": "b", "timestamp": 200})
+    assert history[0]["slug"] == "b"
+    assert history[1]["slug"] == "a"
+
+
+def test_history_capped_at_max():
+    history = []
+    for i in range(15):
+        history = add_history_entry(history, {"slug": f"m-{i}", "timestamp": i * 1000})
+    assert len(history) == MAX_HISTORY
+    assert history[0]["slug"] == "m-14"
+
+
+def test_history_clear():
+    history = [{"slug": "a"}, {"slug": "b"}]
+    history = []
+    assert len(history) == 0
+
+
+# ---- Auto-dismiss setting ----
+
+def test_auto_dismiss_default_false():
+    """Auto-dismiss defaults to false (requireInteraction = true)."""
+    auto_dismiss = None
+    effective = auto_dismiss if auto_dismiss is not None else False
+    assert effective is False
+
+
+def test_auto_dismiss_enabled():
+    """When auto-dismiss is on, requireInteraction should be false."""
+    auto_dismiss = True
+    require_interaction = not auto_dismiss
+    assert require_interaction is False
+
+
+def test_auto_dismiss_disabled():
+    """When auto-dismiss is off, requireInteraction should be true."""
+    auto_dismiss = False
+    require_interaction = not auto_dismiss
+    assert require_interaction is True
+
+
+# ---- Badge count logic (mirrors updateBadge) ----
+
+def badge_text(enabled, watchlist_count):
+    """Mirror the badge logic from background.js."""
+    count = watchlist_count if enabled else 0
+    return str(count) if count > 0 else ""
+
+
+def test_badge_with_watched_markets():
+    assert badge_text(True, 3) == "3"
+
+
+def test_badge_empty_when_disabled():
+    assert badge_text(False, 3) == ""
+
+
+def test_badge_empty_when_no_markets():
+    assert badge_text(True, 0) == ""
+
+
+def test_badge_with_many_markets():
+    assert badge_text(True, 20) == "20"

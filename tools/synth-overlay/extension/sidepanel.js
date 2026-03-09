@@ -372,6 +372,9 @@ var alertEls = {
   threshold: document.getElementById("alertThreshold"),
   watchlist: document.getElementById("watchlist"),
   watchBtn: document.getElementById("watchBtn"),
+  autoDismiss: document.getElementById("autoDismiss"),
+  history: document.getElementById("alertHistory"),
+  clearHistory: document.getElementById("clearHistory"),
 };
 
 function renderWatchlist(list) {
@@ -424,6 +427,31 @@ function updateWatchBtnState() {
   });
 }
 
+function renderHistory(history) {
+  alertEls.history.innerHTML = "";
+  if (!history || history.length === 0) {
+    var hint = document.createElement("div");
+    hint.className = "history-empty";
+    hint.textContent = "No alerts yet";
+    alertEls.history.appendChild(hint);
+    return;
+  }
+  history.forEach(function (entry) {
+    var item = document.createElement("div");
+    item.className = "history-item";
+    var titleDiv = document.createElement("div");
+    titleDiv.className = "history-title";
+    titleDiv.textContent = entry.title;
+    var metaDiv = document.createElement("div");
+    metaDiv.className = "history-meta";
+    var ago = Math.round((Date.now() - entry.timestamp) / 60000);
+    metaDiv.textContent = ago <= 0 ? "Just now" : ago + "m ago";
+    item.appendChild(titleDiv);
+    item.appendChild(metaDiv);
+    alertEls.history.appendChild(item);
+  });
+}
+
 function initAlertsUI() {
   SynthAlerts.load(function (settings) {
     alertEls.enabled.checked = settings.enabled;
@@ -431,6 +459,10 @@ function initAlertsUI() {
     alertEls.threshold.value = settings.threshold;
     renderWatchlist(settings.watchlist);
   });
+  SynthAlerts.loadAutoDismiss(function (val) {
+    alertEls.autoDismiss.checked = val;
+  });
+  SynthAlerts.loadHistory(renderHistory);
 }
 
 alertEls.enabled.addEventListener("change", function () {
@@ -450,6 +482,23 @@ alertEls.watchBtn.addEventListener("click", function () {
   var mtype = cachedMarketType || "daily";
   var label = SynthAlerts.formatMarketLabel(asset, mtype);
   SynthAlerts.addToWatchlist(currentSlug, asset, label, renderWatchlist);
+});
+
+alertEls.autoDismiss.addEventListener("change", function () {
+  SynthAlerts.saveAutoDismiss(alertEls.autoDismiss.checked);
+});
+
+alertEls.clearHistory.addEventListener("click", function () {
+  SynthAlerts.clearHistory(function () {
+    renderHistory([]);
+  });
+});
+
+// Live-update history when background fires a notification
+chrome.storage.onChanged.addListener(function (changes, area) {
+  if (area === "local" && changes[SynthAlerts.KEYS.history]) {
+    renderHistory(changes[SynthAlerts.KEYS.history].newValue || []);
+  }
 });
 
 initAlertsUI();

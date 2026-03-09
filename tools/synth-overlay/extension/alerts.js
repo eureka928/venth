@@ -17,6 +17,8 @@ var SynthAlerts = (function () {
     threshold: "synth_alerts_threshold",
     watchlist: "synth_alerts_watchlist",
     cooldowns: "synth_alerts_cooldowns",
+    history: "synth_alerts_history",
+    autoDismiss: "synth_alerts_auto_dismiss",
   };
 
   var DEFAULTS = {
@@ -27,6 +29,7 @@ var SynthAlerts = (function () {
 
   var COOLDOWN_MS = 5 * 60 * 1000;
   var MAX_WATCHLIST = 20;
+  var MAX_HISTORY = 10;
 
   // ---- Storage helpers ----
 
@@ -135,6 +138,44 @@ var SynthAlerts = (function () {
     return Math.abs(edgePct) >= threshold;
   }
 
+  // ---- Notification History ----
+
+  function loadHistory(callback) {
+    chrome.storage.local.get([KEYS.history], function (result) {
+      callback(Array.isArray(result[KEYS.history]) ? result[KEYS.history] : []);
+    });
+  }
+
+  function addHistoryEntry(entry) {
+    loadHistory(function (history) {
+      history.unshift(entry);
+      if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+      var obj = {};
+      obj[KEYS.history] = history;
+      chrome.storage.local.set(obj);
+    });
+  }
+
+  function clearHistory(callback) {
+    var obj = {};
+    obj[KEYS.history] = [];
+    chrome.storage.local.set(obj, callback);
+  }
+
+  // ---- Auto-dismiss ----
+
+  function loadAutoDismiss(callback) {
+    chrome.storage.local.get([KEYS.autoDismiss], function (result) {
+      callback(result[KEYS.autoDismiss] != null ? result[KEYS.autoDismiss] : false);
+    });
+  }
+
+  function saveAutoDismiss(val) {
+    var obj = {};
+    obj[KEYS.autoDismiss] = !!val;
+    chrome.storage.local.set(obj);
+  }
+
   // ---- Format ----
 
   function formatMarketLabel(asset, marketType) {
@@ -147,6 +188,7 @@ var SynthAlerts = (function () {
     DEFAULTS: DEFAULTS,
     COOLDOWN_MS: COOLDOWN_MS,
     MAX_WATCHLIST: MAX_WATCHLIST,
+    MAX_HISTORY: MAX_HISTORY,
     load: load,
     saveEnabled: saveEnabled,
     saveThreshold: saveThreshold,
@@ -159,5 +201,10 @@ var SynthAlerts = (function () {
     setCooldown: setCooldown,
     exceedsThreshold: exceedsThreshold,
     formatMarketLabel: formatMarketLabel,
+    loadHistory: loadHistory,
+    addHistoryEntry: addHistoryEntry,
+    clearHistory: clearHistory,
+    loadAutoDismiss: loadAutoDismiss,
+    saveAutoDismiss: saveAutoDismiss,
   };
 })();
