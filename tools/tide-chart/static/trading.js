@@ -695,7 +695,7 @@ async function loadOpenTrades() {
         var pnlClass = pnlUsd >= 0 ? 'positive' : 'negative';
         var pnlSign = pnlUsd >= 0 ? '+' : '';
         pnlHtml = '<span class="trade-pnl ' + pnlClass + '">' +
-          pnlSign + pnlUsd.toFixed(2) + ' USDC (' + pnlSign + pnlPct.toFixed(2) + '%)' +
+          'Est. ' + pnlSign + pnlUsd.toFixed(2) + ' USDC (' + pnlSign + pnlPct.toFixed(2) + '%)' +
           '</span>';
       }
 
@@ -810,19 +810,37 @@ async function closeTrade(tradeIndex, pairIndex) {
       'Position closed! <a href="https://arbiscan.io/tx/' + receipt.hash + '" target="_blank" rel="noopener">View on Arbiscan</a>',
       'success', 10000
     );
-    // Record closed trade to localStorage history
+    // Record closed trade to localStorage history with ACTUAL P&L from receipt
     var cached = _openTradesCache[tradeIndex] || {};
     var closePriceFloat = Number(expectedPrice) / 1e10;
     var entryP = cached.openPrice ? parseFloat(cached.openPrice) / 1e10 : 0;
-    var levNum = cached.leverage ? parseFloat(cached.leverage) / 1000 : 0;
     var colIdx = parseInt(cached.collateralIndex || '3');
     var colDec = (colIdx === 3) ? 6 : 18;
     var colNum = cached.collateralAmount ? Number(BigInt(cached.collateralAmount)) / Math.pow(10, colDec) : 0;
-    var pnlPct = 0;
-    if (entryP > 0 && levNum > 0) {
-      pnlPct = cached.long
-        ? ((closePriceFloat - entryP) / entryP) * levNum * 100
-        : ((entryP - closePriceFloat) / entryP) * levNum * 100;
+    // Parse USDC Transfer events from receipt to find actual amount returned
+    var actualPnlUsd = 0;
+    var gotActualPnl = false;
+    var transferTopic = ethers.id('Transfer(address,address,uint256)');
+    var usdcAddr = gtradeConfig.usdc_contract.toLowerCase();
+    var walletAddr = walletState.address.toLowerCase().replace('0x', '');
+    if (receipt.logs) {
+      for (var i = 0; i < receipt.logs.length; i++) {
+        var log = receipt.logs[i];
+        if (log.address && log.address.toLowerCase() === usdcAddr &&
+            log.topics && log.topics[0] === transferTopic &&
+            log.topics[2] && log.topics[2].toLowerCase().indexOf(walletAddr) !== -1) {
+          var returned = Number(BigInt(log.data)) / Math.pow(10, colDec);
+          actualPnlUsd = returned - colNum;
+          gotActualPnl = true;
+          break;
+        }
+      }
+    }
+    var pnlPct = colNum > 0 ? (actualPnlUsd / colNum) * 100 : 0;
+    // If no Transfer found (e.g. full loss), P&L = -collateral
+    if (!gotActualPnl) {
+      actualPnlUsd = -colNum;
+      pnlPct = -100;
     }
     saveTradeToHistory({
       pairLabel: cached.pairLabel || ('Pair #' + pairIndex),
@@ -832,7 +850,7 @@ async function closeTrade(tradeIndex, pairIndex) {
       collateral: colNum.toFixed(2),
       entryPrice: entryP.toFixed(2),
       closePrice: closePriceFloat.toFixed(2),
-      pnlUsd: (colNum * (pnlPct / 100)).toFixed(2),
+      pnlUsd: actualPnlUsd.toFixed(2),
       pnlPct: pnlPct.toFixed(1),
       txHash: receipt.hash,
       closedAt: new Date().toISOString()
