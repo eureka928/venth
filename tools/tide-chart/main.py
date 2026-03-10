@@ -27,6 +27,17 @@ from chart import (
     calculate_target_probability,
     get_assets_for_horizon,
 )
+from gtrade import (
+    get_contract_config,
+    validate_trade_params,
+    build_trade_summary,
+    is_tradeable,
+    resolve_pair_index,
+    get_cached_trading_variables,
+    fetch_open_trades,
+    fetch_trade_history,
+    get_pair_name_map,
+)
 
 ASSET_COLORS = {
     "SPY": {"primary": "#e8d44d", "rgb": "232,212,77"},
@@ -140,6 +151,10 @@ def build_table_rows(ranked: list, benchmark: str) -> str:
 
         rel_median = "-" if asset == benchmark else fmt_val(m["relative_median"])
         rel_skew = "-" if asset == benchmark else fmt_val(m["relative_skew"])
+        trade_btn = ""
+        if is_tradeable(asset):
+            sq = "'"
+            trade_btn = f'<button class="trade-row-btn" onclick="selectTradeAsset({sq}{asset}{sq})">Trade</button>'
 
         rows += f"""
         <tr data-median="{m['median_move']}" data-vol="{m['volatility']}" data-skew="{m['skew']}" data-range="{m['range_pct']}" data-bounds="{m['price_low']}" data-rel-median="{m.get('relative_median', 0)}" data-rel-skew="{m.get('relative_skew', 0)}">
@@ -157,6 +172,7 @@ def build_table_rows(ranked: list, benchmark: str) -> str:
             <td>${m['price_low']:,.2f} - ${m['price_high']:,.2f}</td>
             <td>{rel_median}</td>
             <td>{rel_skew}</td>
+            <td>{trade_btn}</td>
         </tr>"""
     return rows
 
@@ -406,6 +422,104 @@ def generate_dashboard_html(client) -> str:
         "    .title { font-size: 22px; } .dashboard { padding: 16px 12px 32px; }\n"
         "    #cone-chart { height: 320px; } .table-container { overflow-x: auto; }\n"
         "    .controls { flex-direction: column; align-items: flex-start; } }\n"
+        "\n"
+        "  /* Wallet & Trading */\n"
+        "  .wallet-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }\n"
+        "  .wallet-btn { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;\n"
+        "    padding: 6px 16px; background: var(--bg-card); color: var(--text-secondary);\n"
+        "    border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.2s; }\n"
+        "  .wallet-btn:hover { background: var(--bg-card-hover); color: var(--accent); border-color: rgba(232,212,77,0.3); }\n"
+        "  .wallet-btn.connected { background: rgba(52,211,153,0.1); color: var(--positive); border-color: rgba(52,211,153,0.3); }\n"
+        "  .chain-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 8px;\n"
+        "    border-radius: 4px; letter-spacing: 0.5px; display: none; }\n"
+        "  .chain-badge.arb-ok { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }\n"
+        "  .chain-badge.arb-wrong { background: rgba(240,96,112,0.1); color: var(--negative); border: 1px solid rgba(240,96,112,0.2); }\n"
+        "  .wallet-info { display: none; align-items: center; gap: 8px;\n"
+        "    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted); }\n"
+        "  .trade-container { background: var(--bg-card); border: 1px solid var(--border);\n"
+        "    border-radius: 10px; padding: 20px; margin-bottom: 20px; display: none; }\n"
+        "  .trade-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }\n"
+        "  .trade-field { display: flex; flex-direction: column; gap: 4px; }\n"
+        "  .trade-field label { font-family: 'IBM Plex Mono', monospace; font-size: 10px;\n"
+        "    text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }\n"
+        "  .trade-field select, .trade-field input { font-family: 'IBM Plex Mono', monospace; font-size: 12px;\n"
+        "    padding: 8px 12px; background: var(--bg-deep); border: 1px solid var(--border);\n"
+        "    border-radius: 6px; color: var(--text-primary); outline: none; transition: border-color 0.2s; }\n"
+        "  .trade-field select:focus, .trade-field input:focus { border-color: rgba(232,212,77,0.4); }\n"
+        "  .trade-exec-btn { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600;\n"
+        "    padding: 12px; width: 100%; background: rgba(52,211,153,0.2); color: var(--positive);\n"
+        "    border: 1px solid rgba(52,211,153,0.3); border-radius: 6px; cursor: pointer;\n"
+        "    transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; }\n"
+        "  .trade-exec-btn:hover:not(:disabled) { background: rgba(52,211,153,0.3); }\n"
+        "  .trade-exec-btn:disabled { opacity: 0.4; cursor: not-allowed; }\n"
+        "  .trade-exec-btn.long { background: rgba(52,211,153,0.2); color: var(--positive); }\n"
+        "  .trade-exec-btn.short { background: rgba(240,96,112,0.2); color: var(--negative); }\n"
+        "  .trade-exec-btn.long:hover { background: rgba(52,211,153,0.3); }\n"
+        "  .trade-exec-btn.short:hover { background: rgba(240,96,112,0.3); }\n"
+        "  .trade-preview { margin-top: 14px; padding: 12px 16px; background: var(--bg-deep);\n"
+        "    border: 1px solid var(--border); border-radius: 6px; display: none; }\n"
+        "  .preview-row { display: flex; justify-content: space-between; padding: 4px 0;\n"
+        "    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-secondary); }\n"
+        "  .preview-row span:last-child { color: var(--text-primary); }\n"
+        "  .trade-status { margin-top: 10px; padding: 10px 14px; border-radius: 6px;\n"
+        "    font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: none; }\n"
+        "  .trade-status.success { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }\n"
+        "  .trade-status.error { background: rgba(240,96,112,0.1); color: var(--negative); border: 1px solid rgba(240,96,112,0.2); }\n"
+        "  .trade-fallback { display: none; margin-top: 8px; font-size: 11px;\n"
+        "    font-family: 'IBM Plex Mono', monospace; color: var(--text-muted); }\n"
+        "  .trade-fallback a { color: var(--accent); text-decoration: underline; }\n"
+        "  .trade-row-btn { background: rgba(52,211,153,0.12); color: var(--positive); border: 1px solid rgba(52,211,153,0.25);\n"
+        "    border-radius: 4px; padding: 3px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;\n"
+        "    cursor: pointer; transition: background 0.15s; }\n"
+        "  .trade-row-btn:hover { background: rgba(52,211,153,0.25); }\n"
+        "  .trade-field-row { display: flex; gap: 10px; }\n"
+        "  .trade-field-row .trade-field { flex: 1; }\n"
+        "  .open-trades-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }\n"
+        "  .open-trades-header { font-family: 'IBM Plex Mono', monospace; font-size: 10px;\n"
+        "    text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px; }\n"
+        "  .open-trade-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;\n"
+        "    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-secondary);\n"
+        "    border-bottom: 1px solid rgba(30,42,64,0.5); }\n"
+        "  .open-trade-row:last-child { border-bottom: none; }\n"
+        "  .trade-row-info { flex: 1; min-width: 0; }\n"
+        "  .trade-row-main { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }\n"
+        "  .trade-row-pnl { margin-top: 3px; }\n"
+        "  .trade-pnl { font-weight: 600; font-size: 11px; }\n"
+        "  .trade-pnl.positive { color: var(--positive); }\n"
+        "  .trade-pnl.negative { color: var(--negative); }\n"
+        "  .history-badge { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px;\n"
+        "    background: rgba(100,116,139,0.2); color: var(--text-muted); border: 1px solid rgba(100,116,139,0.3);\n"
+        "    white-space: nowrap; flex-shrink: 0; }\n"
+        "  .history-row { opacity: 0.8; }\n"
+        "  .close-trade-btn { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3);\n"
+        "    border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer;\n"
+        "    font-family: 'IBM Plex Mono', monospace; transition: all 0.2s; }\n"
+        "  .close-trade-btn:hover { background: rgba(239,68,68,0.3); border-color: #ef4444; }\n"
+        "  .no-trades { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-muted); }\n"
+        "  .trade-pos-size { font-family: 'IBM Plex Mono', monospace; font-size: 16px;\n"
+        "    font-weight: 600; color: var(--text-primary); text-align: center;\n"
+        "    padding: 10px; background: var(--bg-deep); border-radius: 6px;\n"
+        "    border: 1px solid var(--border); }\n"
+        "  .trade-pos-size.warning { color: var(--negative); }\n"
+        "  .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000;\n"
+        "    display: flex; flex-direction: column-reverse; gap: 8px; max-width: 380px; }\n"
+        "  .toast { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px;\n"
+        "    padding: 12px 16px; border-radius: 8px; background: var(--bg-card);\n"
+        "    border: 1px solid var(--border); color: var(--text-primary);\n"
+        "    box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: toastIn 0.3s ease;\n"
+        "    display: flex; align-items: flex-start; gap: 8px; word-break: break-word; }\n"
+        "  .toast.success { border-color: rgba(52,211,153,0.4); }\n"
+        "  .toast.error { border-color: rgba(240,96,112,0.4); }\n"
+        "  .toast.info { border-color: rgba(232,212,77,0.3); }\n"
+        "  .toast-icon { flex-shrink: 0; font-size: 14px; line-height: 1; }\n"
+        "  .toast.success .toast-icon { color: var(--positive); }\n"
+        "  .toast.error .toast-icon { color: var(--negative); }\n"
+        "  .toast.info .toast-icon { color: var(--accent); }\n"
+        "  .toast-msg { flex: 1; line-height: 1.4; }\n"
+        "  .toast-msg a { color: var(--accent); text-decoration: none; }\n"
+        "  .toast-msg a:hover { text-decoration: underline; }\n"
+        "  @keyframes toastIn { from { opacity: 0; transform: translateY(10px); }\n"
+        "    to { opacity: 1; transform: translateY(0); } }\n"
         "</style>\n</head>\n<body>\n"
         '<div class="dashboard">\n'
         "\n"
@@ -428,6 +542,13 @@ def generate_dashboard_html(client) -> str:
         '      <span class="status-dot idle" id="status-dot"></span>\n'
         "      Auto-refresh (5 min)\n"
         "    </label>\n"
+        '    <div class="wallet-section">\n'
+        '      <span class="chain-badge" id="chain-badge"></span>\n'
+        '      <div class="wallet-info" id="wallet-info">\n'
+        '        <span id="usdc-balance">0</span> USDC\n'
+        '      </div>\n'
+        '      <button class="wallet-btn" id="wallet-btn" onclick="connectWallet()">Connect Wallet</button>\n'
+        '    </div>\n'
         "  </div>\n"
         "\n"
         '  <div class="calc-container">\n'
@@ -451,6 +572,64 @@ def generate_dashboard_html(client) -> str:
         '      <div class="prob-desc" id="prob-desc"></div>\n'
         "    </div>\n"
         "  </div>\n"
+        "\n"
+        '  <div class="trade-container" id="trade-form-section">\n'
+        '    <div class="section-header">\n'
+        '      <span class="section-title">Trade on gTrade</span>\n'
+        '      <span class="section-line"></span>\n'
+        '    </div>\n'
+        '    <div class="trade-form">\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-asset">Pair</label>\n'
+        '        <select id="trade-asset" onchange="updateTradePreview()"></select>\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-direction">Direction</label>\n'
+        '        <select id="trade-direction" onchange="updateTradePreview()">\n'
+        '          <option value="long">Long</option>\n'
+        '          <option value="short">Short</option>\n'
+        '        </select>\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-leverage">Leverage</label>\n'
+        '        <input type="number" id="trade-leverage" min="2" max="150" value="10" step="1" oninput="updateTradePreview()">\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-collateral">Collateral (USDC)</label>\n'
+        '        <input type="number" id="trade-collateral" min="5" step="1" placeholder="e.g. 100" oninput="updateTradePreview()">\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-tp">Take Profit (%)</label>\n'
+        '        <input type="number" id="trade-tp" min="0" max="900" step="1" placeholder="e.g. 50" oninput="updateTradePreview()">\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-sl">Stop Loss (%)</label>\n'
+        '        <input type="number" id="trade-sl" min="0" max="90" step="1" placeholder="e.g. 25" oninput="updateTradePreview()">\n'
+        '      </div>\n'
+        '      <div class="trade-field">\n'
+        '        <label for="trade-slippage">Max Slippage (%)</label>\n'
+        '        <input type="number" id="trade-slippage" min="0.1" max="5" step="0.1" value="1.5" oninput="updateTradePreview()">\n'
+        '      </div>\n'
+        '      <div class="trade-field" style="width:100%">\n'
+        '        <label>Position Size</label>\n'
+        '        <div class="trade-pos-size" id="trade-pos-size">$0.00</div>\n'
+        '      </div>\n'
+        '      <button class="trade-exec-btn" id="trade-exec-btn" onclick="executeTrade()" disabled>Connect Wallet</button>\n'
+        '    </div>\n'
+        '    <div class="trade-preview" id="trade-preview"></div>\n'
+        '    <div class="trade-status" id="trade-status"></div>\n'
+        '    <div class="trade-fallback" id="trade-fallback">\n'
+        '      <a href="#" target="_blank" rel="noopener">Complete trade on gTrade \u2192</a>\n'
+        '    </div>\n'
+        '    <div class="open-trades-section">\n'
+        '      <div class="open-trades-header">Open Positions</div>\n'
+        '      <div id="open-trades-list"><div class="no-trades">Connect wallet to view positions</div></div>\n'
+        '    </div>\n'
+        '    <div class="open-trades-section">\n'
+        '      <div class="open-trades-header">Trade History</div>\n'
+        '      <div id="trade-history-list"><div class="no-trades">Connect wallet to view history</div></div>\n'
+        '    </div>\n'
+        '  </div>\n'
         "\n"
         '  <div class="insights" id="insights">\n'
         '    <div class="insight-card">\n'
@@ -494,6 +673,7 @@ def generate_dashboard_html(client) -> str:
         '          <th class="sortable" data-sort="bounds" data-tip="Projected price at 5th and 95th percentile" tabindex="0" role="columnheader" aria-sort="none">Bounds<span class="sort-arrow">\u25B4\u25BE</span></th>\n'
         f'          <th class="sortable" data-sort="rel-median" data-tip="Median move relative to benchmark" tabindex="0" role="columnheader" aria-sort="none" id="th-rel-median">vs {benchmark}<span class="sort-arrow">\u25B4\u25BE</span></th>\n'
         f'          <th class="sortable" data-sort="rel-skew" data-tip="Directional skew relative to benchmark" tabindex="0" role="columnheader" aria-sort="none" id="th-rel-skew">Skew vs {benchmark}<span class="sort-arrow">\u25B4\u25BE</span></th>\n'
+        '          <th></th>\n'
         "        </tr>\n"
         "      </thead>\n"
         f"      <tbody id=\"rank-tbody\">{table_rows}\n"
@@ -507,6 +687,7 @@ def generate_dashboard_html(client) -> str:
         "  </div>\n"
         "\n"
         "</div>\n"
+        '<div class="toast-container" id="toast-container"></div>\n'
         "\n"
         "<script>\n"
         "var currentHorizon = '24h';\n"
@@ -674,6 +855,9 @@ def generate_dashboard_html(client) -> str:
         "}\n"
         "initSortableTable();\n"
         "</script>\n"
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"'
+        ' crossorigin="anonymous"></script>\n'
+        '<script src="/static/trading.js"></script>\n'
         "</body>\n</html>"
     )
     return html
@@ -688,6 +872,14 @@ def create_app(client=None) -> Flask:
             client = SynthClient()
 
     app = Flask(__name__)
+
+    @app.after_request
+    def add_no_cache_headers(response):
+        if request.path.startswith("/api/") or request.path.endswith(".js"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
     @app.route("/")
     def index():
@@ -742,6 +934,71 @@ def create_app(client=None) -> Flask:
             })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/gtrade/config")
+    def gtrade_config_route():
+        return jsonify(get_contract_config())
+
+    @app.route("/api/gtrade/validate-trade", methods=["POST"])
+    def gtrade_validate_trade():
+        body = request.get_json(silent=True) or {}
+        asset = body.get("asset", "")
+        direction = body.get("direction", "")
+        leverage = body.get("leverage", 0)
+        collateral_usd = body.get("collateral_usd", 0)
+
+        valid, error = validate_trade_params(asset, direction, leverage, collateral_usd)
+        if not valid:
+            return jsonify({"valid": False, "error": error}), 400
+
+        current_price = 0.0
+        try:
+            forecast = client.get_prediction_percentiles(asset, horizon="24h")
+            current_price = forecast["current_price"]
+        except Exception:
+            pass
+
+        summary = build_trade_summary(asset, current_price, direction, leverage, collateral_usd)
+        return jsonify({"valid": True, "summary": summary})
+
+    @app.route("/api/gtrade/resolve-pair")
+    def gtrade_resolve_pair():
+        asset = request.args.get("asset", "")
+        if not is_tradeable(asset):
+            return jsonify({"error": f"{asset} not tradeable", "pair_index": None}), 400
+
+        try:
+            trading_vars = get_cached_trading_variables()
+        except Exception:
+            trading_vars = None
+        pair_index = resolve_pair_index(asset, trading_vars, skip_fetch=True)
+        # Include fresh price for the frontend openTrade struct
+        current_price = None
+        try:
+            summary = client.get_asset_summary(asset)
+            if summary and "current_price" in summary:
+                current_price = summary["current_price"]
+        except Exception:
+            pass
+        return jsonify({"asset": asset, "pair_index": pair_index, "current_price": current_price})
+
+    @app.route("/api/gtrade/open-trades")
+    def gtrade_open_trades():
+        address = request.args.get("address", "").strip()
+        if not address or len(address) != 42 or not address.startswith("0x"):
+            return jsonify({"error": "Invalid Ethereum address", "trades": []}), 400
+        trades = fetch_open_trades(address)
+        pair_names = get_pair_name_map()
+        return jsonify({"address": address, "trades": trades, "pair_names": pair_names})
+
+    @app.route("/api/gtrade/trade-history")
+    def gtrade_trade_history():
+        address = request.args.get("address", "").strip()
+        if not address or len(address) != 42 or not address.startswith("0x"):
+            return jsonify({"error": "Invalid Ethereum address", "history": []}), 400
+        history = fetch_trade_history(address)
+        pair_names = get_pair_name_map()
+        return jsonify({"address": address, "history": history, "pair_names": pair_names})
 
     return app
 

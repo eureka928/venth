@@ -35,6 +35,20 @@ from chart import (
     calculate_target_probability,
 )
 from main import generate_dashboard_html, create_app, build_insights, make_time_points
+from gtrade import (
+    get_tradeable_assets,
+    is_tradeable,
+    validate_trade_params,
+    build_trade_summary,
+    get_chain_config,
+    get_contract_config,
+    get_asset_limits,
+    fetch_open_trades,
+    TRADEABLE_ASSETS,
+    GROUP_LIMITS,
+    MIN_COLLATERAL_USD,
+    ARBITRUM_CHAIN_ID,
+)
 
 
 def _make_client():
@@ -515,6 +529,248 @@ def test_flask_api_probability_missing_body():
         assert resp.status_code == 400
 
 
+# --- gTrade integration tests ---
+
+
+def test_gtrade_tradeable_assets():
+    """Verify tradeable assets include all Synth API assets."""
+    assets = get_tradeable_assets()
+    assert len(assets) == 9
+    for a in ["SPY", "NVDA", "TSLA", "AAPL", "GOOGL", "BTC", "ETH", "SOL", "XAU"]:
+        assert a in assets
+
+
+def test_gtrade_is_tradeable():
+    """Verify is_tradeable for known and unknown assets."""
+    assert is_tradeable("SPY") is True
+    assert is_tradeable("NVDA") is True
+    assert is_tradeable("BTC") is True
+    assert is_tradeable("ETH") is True
+    assert is_tradeable("SOL") is True
+    assert is_tradeable("XAU") is True
+    assert is_tradeable("UNKNOWN") is False
+
+
+def test_gtrade_validate_valid():
+    """Verify valid trade params pass validation (position >= $1,500)."""
+    valid, err = validate_trade_params("SPY", "long", 10, 200)
+    assert valid is True
+    assert err == ""
+
+    valid, err = validate_trade_params("BTC", "short", 50, 100)
+    assert valid is True
+
+    valid, err = validate_trade_params("XAU", "long", 150, 100)
+    assert valid is True
+
+
+def test_gtrade_validate_invalid_asset():
+    valid, err = validate_trade_params("DOGE", "long", 10, 200)
+    assert valid is False
+    assert "not available" in err
+
+
+def test_gtrade_validate_invalid_direction():
+    valid, err = validate_trade_params("SPY", "sideways", 10, 200)
+    assert valid is False
+    assert "Direction" in err
+
+
+def test_gtrade_validate_leverage_bounds():
+    limits = get_asset_limits("SPY")
+    valid, err = validate_trade_params("SPY", "long", 1, 200)
+    assert valid is False
+    assert "at least" in err
+
+    valid, err = validate_trade_params("SPY", "long", limits["max_leverage"] + 1, 200)
+    assert valid is False
+    assert "exceed" in err
+
+
+def test_gtrade_validate_collateral_bounds():
+    valid, err = validate_trade_params("SPY", "long", 10, 1)
+    assert valid is False
+    assert "Minimum" in err or "collateral" in err.lower()
+
+    limits = get_asset_limits("SPY")
+    valid, err = validate_trade_params("SPY", "long", 10, limits["max_collateral_usd"] + 1)
+    assert valid is False
+    assert "Maximum" in err
+
+
+def test_gtrade_validate_min_position_size():
+    """Verify position size (collateral * leverage) must meet protocol minimum."""
+    # $10 * 10x = $100 position, below $1,500 minimum
+    valid, err = validate_trade_params("SPY", "long", 10, 10)
+    assert valid is False
+    assert "below minimum" in err.lower() or "Position size" in err
+
+    # $150 * 10x = $1,500 position, exactly at minimum
+    valid, err = validate_trade_params("SPY", "long", 10, 150)
+    assert valid is True
+
+    # Same check for crypto
+    valid, err = validate_trade_params("BTC", "long", 5, 50)
+    assert valid is False
+    assert "below minimum" in err.lower() or "Position size" in err
+
+
+def test_gtrade_build_trade_summary():
+    s = build_trade_summary("NVDA", 950.0, "long", 10, 200)
+    assert s["asset"] == "NVDA"
+    assert s["pair_name"] == "NVDA/USD"
+    assert s["direction"] == "long"
+    assert s["leverage"] == 10
+    assert s["collateral_usd"] == 200
+    assert s["position_size_usd"] == 2000
+    assert s["current_price"] == 950.0
+    assert s["chain"] == "Arbitrum One"
+    assert s["collateral_token"] == "USDC"
+
+
+def test_gtrade_chain_config():
+    cfg = get_chain_config()
+    assert cfg["chain_id"] == ARBITRUM_CHAIN_ID
+    assert cfg["chain_id_hex"] == "0xa4b1"
+    assert cfg["chain_name"] == "Arbitrum One"
+    assert "rpc_url" in cfg
+
+
+def test_gtrade_contract_config():
+    cfg = get_contract_config()
+    assert "trading_contract" in cfg
+    assert "usdc_contract" in cfg
+    assert "pairs" in cfg
+    assert len(cfg["pairs"]) == 9
+    for asset in TRADEABLE_ASSETS:
+        assert asset in cfg["pairs"]
+    assert "group_limits" in cfg
+    assert "crypto" in cfg["group_limits"]
+    assert "stocks" in cfg["group_limits"]
+    assert "commodities" in cfg["group_limits"]
+    assert cfg["group_limits"]["crypto"]["min_position_usd"] == 1500
+
+
+def test_flask_gtrade_config_route():
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.get("/api/gtrade/config")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "trading_contract" in data
+        assert "pairs" in data
+        assert len(data["pairs"]) == 9
+        assert "group_limits" in data
+        assert data["group_limits"]["crypto"]["min_position_usd"] == 1500
+
+
+def test_flask_gtrade_validate_trade_valid():
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.post("/api/gtrade/validate-trade",
+                       data=json.dumps({"asset": "SPY", "direction": "long",
+                                        "leverage": 10, "collateral_usd": 200}),
+                       content_type="application/json")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["valid"] is True
+        assert "summary" in data
+        assert data["summary"]["position_size_usd"] == 2000
+
+
+def test_flask_gtrade_validate_trade_invalid():
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.post("/api/gtrade/validate-trade",
+                       data=json.dumps({"asset": "DOGE", "direction": "long",
+                                        "leverage": 10, "collateral_usd": 200}),
+                       content_type="application/json")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert data["valid"] is False
+
+
+def test_flask_gtrade_validate_trade_below_min_position():
+    """Verify server rejects trades below minimum position size."""
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.post("/api/gtrade/validate-trade",
+                       data=json.dumps({"asset": "BTC", "direction": "long",
+                                        "leverage": 2, "collateral_usd": 10}),
+                       content_type="application/json")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert data["valid"] is False
+        assert "Position size" in data["error"] or "below" in data["error"].lower()
+
+
+def test_flask_gtrade_resolve_pair_invalid():
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.get("/api/gtrade/resolve-pair?asset=UNKNOWN")
+        assert resp.status_code == 400
+
+
+def test_flask_gtrade_resolve_pair_valid():
+    """Verify resolve-pair returns for a valid asset (pair_index may be None without live API)."""
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.get("/api/gtrade/resolve-pair?asset=SPY")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["asset"] == "SPY"
+        assert "pair_index" in data
+
+
+def test_dashboard_html_contains_wallet_ui():
+    """Verify the generated HTML includes wallet, trading UI, and toast elements."""
+    client = _make_client()
+    html = generate_dashboard_html(client)
+    assert 'id="wallet-btn"' in html
+    assert 'Connect Wallet' in html
+    assert 'id="trade-form-section"' in html
+    assert 'Trade on gTrade' in html
+    assert 'id="trade-asset"' in html
+    assert 'id="trade-exec-btn"' in html
+    assert 'ethers' in html
+    assert 'trading.js' in html
+    assert 'id="open-trades-list"' in html
+    assert 'Open Positions' in html
+    assert 'trade-row-btn' in html
+    assert 'id="trade-tp"' in html
+    assert 'id="trade-sl"' in html
+    assert 'id="trade-slippage"' in html
+    assert 'Take Profit' in html
+    assert 'Stop Loss' in html
+    assert 'Max Slippage' in html
+    assert 'id="toast-container"' in html
+    assert 'id="trade-pos-size"' in html
+    assert 'Position Size' in html
+
+
+def test_flask_gtrade_open_trades_invalid_address():
+    """Verify /api/gtrade/open-trades rejects invalid addresses."""
+    client = _make_client()
+    app = create_app(client)
+    with app.test_client() as tc:
+        resp = tc.get("/api/gtrade/open-trades?address=invalid")
+        assert resp.status_code == 400
+        resp2 = tc.get("/api/gtrade/open-trades")
+        assert resp2.status_code == 400
+
+
+def test_fetch_open_trades_empty_address():
+    """Verify fetch_open_trades returns empty list for empty address."""
+    result = fetch_open_trades("")
+    assert result == []
+
+
 if __name__ == "__main__":
     test_client_loads_in_mock_mode()
     test_fetch_all_equities_data()
@@ -550,4 +806,25 @@ if __name__ == "__main__":
     test_flask_api_probability_invalid_asset()
     test_flask_api_probability_invalid_price()
     test_flask_api_probability_missing_body()
+    test_gtrade_tradeable_assets()
+    test_gtrade_is_tradeable()
+    test_gtrade_validate_valid()
+    test_gtrade_validate_invalid_asset()
+    test_gtrade_validate_invalid_direction()
+    test_gtrade_validate_leverage_bounds()
+    test_gtrade_validate_collateral_bounds()
+    test_gtrade_build_trade_summary()
+    test_gtrade_chain_config()
+    test_gtrade_contract_config()
+    test_flask_gtrade_config_route()
+    test_gtrade_validate_min_position_size()
+    test_flask_gtrade_config_route()
+    test_flask_gtrade_validate_trade_valid()
+    test_flask_gtrade_validate_trade_invalid()
+    test_flask_gtrade_validate_trade_below_min_position()
+    test_flask_gtrade_resolve_pair_invalid()
+    test_flask_gtrade_resolve_pair_valid()
+    test_dashboard_html_contains_wallet_ui()
+    test_flask_gtrade_open_trades_invalid_address()
+    test_fetch_open_trades_empty_address()
     print("All tests passed!")
