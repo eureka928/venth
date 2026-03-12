@@ -41,6 +41,13 @@ from exchange import (
     compute_edge,
 )
 
+from executor import (
+    build_execution_plan,
+    validate_plan,
+    execute_plan,
+    get_executor,
+)
+
 SUPPORTED_ASSETS = ["BTC", "ETH", "SOL", "XAU", "SPY", "NVDA", "TSLA", "AAPL", "GOOGL"]
 
 
@@ -671,6 +678,66 @@ def screen_if_wrong(best: ScoredStrategy | None, no_trade_reason: str | None,
     print(_footer())
 
 
+def screen_execution(best: ScoredStrategy, asset: str, exchange: str | None,
+                     exchange_quotes: list, synth_options: dict, dry_run: bool = False,
+                     no_prompt: bool = False):
+    """Screen 5: Execution — build plan, confirm, execute, report results.
+    Returns ExecutionReport or None if cancelled/failed."""
+    print(_header("Screen 5: Execution"))
+    mode_label = "DRY RUN" if dry_run else "LIVE"
+    print(f"{BAR}  Mode: {mode_label}")
+
+    plan = build_execution_plan(best, asset, exchange, exchange_quotes, synth_options)
+    plan.dry_run = dry_run
+
+    valid, err = validate_plan(plan)
+    if not valid:
+        print(f"{BAR}  Pre-flight FAILED: {err}")
+        print(_footer())
+        return None
+
+    print(f"{BAR}  Exchange: {plan.exchange.upper()}")
+    print(f"{BAR}  Asset: {plan.asset}")
+    print(f"{BAR}  Strategy: {plan.strategy_description}")
+    print(f"{BAR}")
+    print(_section("ORDER PLAN"))
+    for order in plan.orders:
+        print(f"{BAR}    Leg {order.leg_index}: {order.action} {order.quantity}x "
+              f"{order.instrument} @ ${order.price:,.2f} ({order.order_type}) "
+              f"[{order.exchange}]")
+    print(f"{BAR}")
+    print(_kv("Est. Cost", f"${plan.estimated_cost:,.2f}"))
+    print(_kv("Est. Max Loss", f"${plan.estimated_max_loss:,.2f}"))
+
+    if not dry_run:
+        print(f"{BAR}")
+        print(f"{BAR}  WARNING: This will submit LIVE orders.")
+        _pause("confirm execution", no_prompt)
+
+    try:
+        executor = get_executor(exchange, exchange_quotes, dry_run)
+    except ValueError as e:
+        print(f"{BAR}  {e}")
+        print(_footer())
+        return None
+
+    report = execute_plan(plan, executor)
+
+    print(f"{BAR}")
+    print(_section("RESULTS"))
+    for result in report.results:
+        status_icon = "\u2713" if result.status in ("filled", "simulated") else "\u2717"
+        print(f"{BAR}    {status_icon} {result.action} {result.instrument}: "
+              f"{result.status} @ ${result.fill_price:,.2f} x{result.fill_quantity}"
+              + (f" [{result.error}]" if result.error else ""))
+    print(f"{BAR}")
+    print(_kv("All Filled", "Yes" if report.all_filled else "No"))
+    print(_kv("Net Cost", f"${report.net_cost:,.2f}"))
+    print(f"{BAR}  {report.summary}")
+    print(_footer())
+    return report
+
+
 def _card_to_log(card: ScoredStrategy | None, exchange_divergence: float | None = None) -> dict | None:
     """Serialize a strategy card for the decision log with full trade construction."""
     if card is None:
@@ -728,6 +795,12 @@ def main():
                         help="Screens to show: comma-separated 1,2,3,4 or 'all' (default: all)")
     parser.add_argument("--no-prompt", action="store_true", dest="no_prompt",
                         help="Skip pause between screens (dump all at once)")
+    parser.add_argument("--execute", action="store_true",
+                        help="Execute the best strategy on a live exchange")
+    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
+                        help="Simulate execution (no real orders)")
+    parser.add_argument("--exchange", default=None, choices=["deribit", "aevo"],
+                        help="Force exchange (default: auto-route per leg)")
     args = parser.parse_args()
     screens = _parse_screen_arg(args.screen)
     with warnings.catch_warnings():
@@ -806,6 +879,21 @@ def main():
             _pause("Screen 4: If Wrong", args.no_prompt)
         screen_if_wrong(best, no_trade_reason, outcome_prices, current_price, asset=symbol)
         shown_any = True
+    # Screen 5: Execution (triggered by --execute or --dry-run, not by --screen)
+    execution_report = None
+    if (args.execute or args.dry_run) and best is not None and exchange_quotes:
+        if shown_any:
+            _pause("Screen 5: Execution", args.no_prompt)
+        execution_report = screen_execution(
+            best, symbol, args.exchange, exchange_quotes, options,
+            dry_run=args.dry_run or not args.execute,
+            no_prompt=args.no_prompt,
+        )
+        shown_any = True
+    elif (args.execute or args.dry_run) and best is None:
+        print(f"\n  Cannot execute: no strategy recommendation available.")
+    elif (args.execute or args.dry_run) and not exchange_quotes:
+        print(f"\n  Cannot execute: exchange data not available (crypto assets only).")
     if shown_any:
         _pause("Decision Log", args.no_prompt)
     decision_log = {
@@ -829,6 +917,23 @@ def main():
         "safer_alt": _card_to_log(safer, divergence_by_strategy.get(id(safer.strategy)) if divergence_by_strategy and safer else None),
         "higher_upside": _card_to_log(upside, divergence_by_strategy.get(id(upside.strategy)) if divergence_by_strategy and upside else None),
     }
+    if execution_report is not None:
+        decision_log["execution"] = {
+            "mode": "dry_run" if execution_report.plan.dry_run else "live",
+            "exchange": execution_report.plan.exchange,
+            "all_filled": execution_report.all_filled,
+            "net_cost": round(execution_report.net_cost, 2),
+            "fills": [
+                {
+                    "instrument": r.instrument,
+                    "action": r.action,
+                    "status": r.status,
+                    "fill_price": round(r.fill_price, 2),
+                    "fill_quantity": r.fill_quantity,
+                }
+                for r in execution_report.results
+            ],
+        }
     print(_header("Decision Log (JSON)"))
     for line in json.dumps(decision_log, indent=2, ensure_ascii=False).split("\n"):
         print(f"{BAR}  {line}")
