@@ -46,6 +46,8 @@ from executor import (
     validate_plan,
     execute_plan,
     get_executor,
+    save_execution_log,
+    compute_execution_savings,
 )
 
 SUPPORTED_ASSETS = ["BTC", "ETH", "SOL", "XAU", "SPY", "NVDA", "TSLA", "AAPL", "GOOGL"]
@@ -678,19 +680,24 @@ def screen_if_wrong(best: ScoredStrategy | None, no_trade_reason: str | None,
     print(_footer())
 
 
-def screen_execution(best: ScoredStrategy, asset: str, exchange: str | None,
+def screen_execution(card: ScoredStrategy, asset: str, exchange: str | None,
                      exchange_quotes: list, synth_options: dict, dry_run: bool = False,
-                     no_prompt: bool = False):
+                     no_prompt: bool = False, size: int = 1,
+                     max_slippage: float | None = None,
+                     max_loss: float | None = None,
+                     log_file: str | None = None,
+                     timeout: float | None = None):
     """Screen 5: Execution — build plan, confirm, execute, report results.
     Returns ExecutionReport or None if cancelled/failed."""
     print(_header("Screen 5: Execution"))
     mode_label = "DRY RUN" if dry_run else "LIVE"
     print(f"{BAR}  Mode: {mode_label}")
 
-    plan = build_execution_plan(best, asset, exchange, exchange_quotes, synth_options)
+    plan = build_execution_plan(card, asset, exchange, exchange_quotes, synth_options,
+                                size_multiplier=size)
     plan.dry_run = dry_run
 
-    valid, err = validate_plan(plan)
+    valid, err = validate_plan(plan, max_loss_budget=max_loss)
     if not valid:
         print(f"{BAR}  Pre-flight FAILED: {err}")
         print(_footer())
@@ -699,6 +706,8 @@ def screen_execution(best: ScoredStrategy, asset: str, exchange: str | None,
     print(f"{BAR}  Exchange: {plan.exchange.upper()}")
     print(f"{BAR}  Asset: {plan.asset}")
     print(f"{BAR}  Strategy: {plan.strategy_description}")
+    if size > 1:
+        print(f"{BAR}  Size: {size}x (multiplied)")
     print(f"{BAR}")
     print(_section("ORDER PLAN"))
     for order in plan.orders:
@@ -708,6 +717,10 @@ def screen_execution(best: ScoredStrategy, asset: str, exchange: str | None,
     print(f"{BAR}")
     print(_kv("Est. Cost", f"${plan.estimated_cost:,.2f}"))
     print(_kv("Est. Max Loss", f"${plan.estimated_max_loss:,.2f}"))
+    if max_slippage is not None:
+        print(_kv("Max Slippage", f"{max_slippage:.2f}%"))
+    if max_loss is not None:
+        print(_kv("Max Loss Budget", f"${max_loss:,.2f}"))
 
     if not dry_run:
         print(f"{BAR}")
@@ -721,20 +734,42 @@ def screen_execution(best: ScoredStrategy, asset: str, exchange: str | None,
         print(_footer())
         return None
 
-    report = execute_plan(plan, executor)
+    report = execute_plan(plan, executor, max_slippage_pct=max_slippage,
+                          timeout_seconds=timeout)
 
     print(f"{BAR}")
     print(_section("RESULTS"))
     for result in report.results:
         status_icon = "\u2713" if result.status in ("filled", "simulated") else "\u2717"
+        slip_str = f" [slip {result.slippage_pct:+.2f}%]" if result.slippage_pct != 0 else ""
+        latency_str = f" [{result.latency_ms:.0f}ms]" if result.latency_ms > 0 else ""
         print(f"{BAR}    {status_icon} {result.action} {result.instrument}: "
               f"{result.status} @ ${result.fill_price:,.2f} x{result.fill_quantity}"
+              f"{slip_str}{latency_str}"
               + (f" [{result.error}]" if result.error else ""))
     print(f"{BAR}")
     print(_kv("All Filled", "Yes" if report.all_filled else "No"))
     print(_kv("Net Cost", f"${report.net_cost:,.2f}"))
+    if report.slippage_total != 0:
+        print(_kv("Total Slippage", f"{report.slippage_total:.2f}%"))
+    if report.started_at and report.finished_at:
+        print(_kv("Started", report.started_at))
+        print(_kv("Finished", report.finished_at))
+    if report.cancelled_orders:
+        print(_kv("Cancelled", f"{len(report.cancelled_orders)} order(s)"))
+    # Execution savings vs Synth theoretical
+    if report.all_filled and plan.exchange == "auto":
+        savings = compute_execution_savings(plan, synth_options)
+        if savings["savings_usd"] != 0:
+            sign = "+" if savings["savings_usd"] > 0 else ""
+            print(_kv("Savings vs Synth", f"{sign}${savings['savings_usd']:,.2f} ({sign}{savings['savings_pct']:.1f}%)"))
     print(f"{BAR}  {report.summary}")
     print(_footer())
+
+    if log_file and report is not None:
+        save_execution_log(report, log_file)
+        print(f"  Execution log saved to {log_file}")
+
     return report
 
 
@@ -795,12 +830,26 @@ def main():
                         help="Screens to show: comma-separated 1,2,3,4 or 'all' (default: all)")
     parser.add_argument("--no-prompt", action="store_true", dest="no_prompt",
                         help="Skip pause between screens (dump all at once)")
-    parser.add_argument("--execute", action="store_true",
-                        help="Execute the best strategy on a live exchange")
-    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
-                        help="Simulate execution (no real orders)")
+    parser.add_argument("--execute", default=None, nargs="?", const="best",
+                        choices=["best", "safer", "upside"],
+                        help="Execute a strategy on a live exchange (default: best)")
+    parser.add_argument("--dry-run", default=None, nargs="?", const="best",
+                        choices=["best", "safer", "upside"],
+                        help="Simulate execution (default: best)")
     parser.add_argument("--exchange", default=None, choices=["deribit", "aevo"],
                         help="Force exchange (default: auto-route per leg)")
+    parser.add_argument("--force", action="store_true",
+                        help="Override no-trade guardrail for live execution")
+    parser.add_argument("--size", type=int, default=1,
+                        help="Position size multiplier (default: 1)")
+    parser.add_argument("--max-slippage", type=float, default=None, dest="max_slippage",
+                        help="Max acceptable slippage %% (halt if exceeded)")
+    parser.add_argument("--max-loss", type=float, default=None, dest="max_loss",
+                        help="Max loss budget in USD (reject if strategy exceeds)")
+    parser.add_argument("--log-file", default=None, dest="log_file",
+                        help="Save execution report JSON to file")
+    parser.add_argument("--timeout", type=float, default=None,
+                        help="Order monitoring timeout in seconds (default: 30)")
     args = parser.parse_args()
     screens = _parse_screen_arg(args.screen)
     with warnings.catch_warnings():
@@ -881,19 +930,42 @@ def main():
         shown_any = True
     # Screen 5: Execution (triggered by --execute or --dry-run, not by --screen)
     execution_report = None
-    if (args.execute or args.dry_run) and best is not None and exchange_quotes:
-        if shown_any:
-            _pause("Screen 5: Execution", args.no_prompt)
-        execution_report = screen_execution(
-            best, symbol, args.exchange, exchange_quotes, options,
-            dry_run=args.dry_run or not args.execute,
-            no_prompt=args.no_prompt,
-        )
+    exec_card_name = args.execute or args.dry_run  # "best" | "safer" | "upside" | None
+    is_executing = exec_card_name is not None
+    if is_executing:
+        # Non-crypto guard
+        if symbol not in ("BTC", "ETH", "SOL"):
+            print(f"\n  Execution only supported for crypto assets (BTC, ETH, SOL).")
+            sys.exit(1)
+        # Select card
+        card_map = {"best": best, "safer": safer, "upside": upside}
+        exec_card = card_map.get(exec_card_name)
+        is_live = args.execute is not None
+        is_dry = args.dry_run is not None
+
+    if is_executing and exec_card is not None and exchange_quotes:
+        # Guardrail: refuse live execution when no-trade unless --force
+        if is_live and no_trade_reason and not args.force:
+            print(f"\n  Guardrail: {no_trade_reason}")
+            print(f"  Use --force to override and execute anyway.")
+        else:
+            if shown_any:
+                _pause("Screen 5: Execution", args.no_prompt)
+            execution_report = screen_execution(
+                exec_card, symbol, args.exchange, exchange_quotes, options,
+                dry_run=is_dry or not is_live,
+                no_prompt=args.no_prompt,
+                size=args.size,
+                max_slippage=args.max_slippage,
+                max_loss=args.max_loss,
+                log_file=args.log_file,
+                timeout=args.timeout,
+            )
         shown_any = True
-    elif (args.execute or args.dry_run) and best is None:
-        print(f"\n  Cannot execute: no strategy recommendation available.")
-    elif (args.execute or args.dry_run) and not exchange_quotes:
-        print(f"\n  Cannot execute: exchange data not available (crypto assets only).")
+    elif is_executing and exec_card is None:
+        print(f"\n  Cannot execute '{exec_card_name}': no {exec_card_name} strategy available.")
+    elif is_executing and not exchange_quotes:
+        print(f"\n  Cannot execute: exchange data not available.")
     if shown_any:
         _pause("Decision Log", args.no_prompt)
     decision_log = {
@@ -923,6 +995,9 @@ def main():
             "exchange": execution_report.plan.exchange,
             "all_filled": execution_report.all_filled,
             "net_cost": round(execution_report.net_cost, 2),
+            "started_at": execution_report.started_at,
+            "finished_at": execution_report.finished_at,
+            "cancelled_orders": execution_report.cancelled_orders,
             "fills": [
                 {
                     "instrument": r.instrument,
@@ -930,6 +1005,9 @@ def main():
                     "status": r.status,
                     "fill_price": round(r.fill_price, 2),
                     "fill_quantity": r.fill_quantity,
+                    "slippage_pct": round(r.slippage_pct, 4),
+                    "timestamp": r.timestamp,
+                    "latency_ms": r.latency_ms,
                 }
                 for r in execution_report.results
             ],

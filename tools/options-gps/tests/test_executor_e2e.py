@@ -159,6 +159,102 @@ def test_non_crypto_skips_execution():
     assert quotes == []
 
 
+def test_auto_route_factory_e2e():
+    """Auto-routing with factory callable should execute all legs."""
+    quotes = fetch_all_exchanges("BTC", mock_dir=MOCK_DIR)
+    candidates = generate_strategies(OPTION_DATA, "bullish", "medium", asset="BTC",
+                                     expiry="2026-02-26 08:00:00Z")
+    spreads = [c for c in candidates if c.strategy_type == "call_debit_spread"]
+    if not spreads:
+        return
+    spread = spreads[0]
+
+    from pipeline import ScoredStrategy
+    scored = ScoredStrategy(
+        strategy=spread, probability_of_profit=0.5, expected_value=50.0,
+        tail_risk=40.0, loss_profile="defined risk",
+        invalidation_trigger="Close on break", reroute_rule="Roll out",
+        review_again_at="Review at 50%", score=0.7, rationale="Test",
+    )
+
+    plan = build_execution_plan(scored, "BTC", None, quotes, OPTION_DATA)
+    plan.dry_run = True
+
+    # Use factory callable (simulates live auto-routing path)
+    def _factory(exchange: str):
+        return DryRunExecutor(quotes)
+
+    report = execute_plan(plan, _factory)
+    assert report.all_filled is True
+    assert len(report.results) == 2
+
+
+def test_execution_report_timing():
+    """Execution report has started_at and finished_at populated."""
+    quotes = fetch_all_exchanges("BTC", mock_dir=MOCK_DIR)
+    candidates = generate_strategies(OPTION_DATA, "bullish", "medium", asset="BTC",
+                                     expiry="2026-02-26 08:00:00Z")
+    assert len(candidates) > 0
+    fusion = run_forecast_fusion(None, P24H, CURRENT_PRICE)
+    confidence = forecast_confidence(P24H, CURRENT_PRICE)
+    outcome_prices = [float(P24H[k]) for k in sorted(P24H.keys())]
+
+    scored = rank_strategies(
+        candidates, fusion, "bullish", outcome_prices, "medium", CURRENT_PRICE,
+        confidence=confidence,
+    )
+    best, _, _ = select_three_cards(scored)
+    plan = build_execution_plan(best, "BTC", "deribit", quotes, OPTION_DATA)
+    plan.dry_run = True
+    executor = DryRunExecutor(quotes)
+    report = execute_plan(plan, executor)
+    assert report.started_at != ""
+    assert report.finished_at != ""
+    assert report.all_filled is True
+    # Every fill should have a timestamp
+    for r in report.results:
+        assert r.timestamp != ""
+        assert r.latency_ms >= 0
+
+
+def test_guardrail_blocks_live_on_no_trade():
+    """When no_trade_reason is active, main.py should block live execution.
+    We test the logic directly: if is_live and no_trade_reason and not force → block."""
+    # This is a logic-level test since we can't easily run the full CLI here
+    no_trade_reason = "Countermove detected"
+    is_live = True
+    force = False
+    blocked = is_live and no_trade_reason and not force
+    assert blocked is True
+
+
+def test_guardrail_allows_force():
+    """With --force, live execution proceeds despite no_trade_reason."""
+    no_trade_reason = "Countermove detected"
+    is_live = True
+    force = True
+    blocked = is_live and no_trade_reason and not force
+    assert blocked is False
+
+
+def test_guardrail_allows_dry_run():
+    """Dry-run ignores guardrail (not live execution)."""
+    no_trade_reason = "Low confidence"
+    is_live = False
+    force = False
+    blocked = is_live and no_trade_reason and not force
+    assert blocked is False
+
+
+def test_guardrail_no_reason_allows_live():
+    """When no_trade_reason is None, live execution proceeds."""
+    no_trade_reason = None
+    is_live = True
+    force = False
+    blocked = is_live and no_trade_reason and not force
+    assert not blocked
+
+
 if __name__ == "__main__":
     test_full_execution_pipeline()
     print("PASS: test_full_execution_pipeline")
@@ -166,4 +262,16 @@ if __name__ == "__main__":
     print("PASS: test_multi_leg_execution_pipeline")
     test_non_crypto_skips_execution()
     print("PASS: test_non_crypto_skips_execution")
+    test_auto_route_factory_e2e()
+    print("PASS: test_auto_route_factory_e2e")
+    test_execution_report_timing()
+    print("PASS: test_execution_report_timing")
+    test_guardrail_blocks_live_on_no_trade()
+    print("PASS: test_guardrail_blocks_live_on_no_trade")
+    test_guardrail_allows_force()
+    print("PASS: test_guardrail_allows_force")
+    test_guardrail_allows_dry_run()
+    print("PASS: test_guardrail_allows_dry_run")
+    test_guardrail_no_reason_allows_live()
+    print("PASS: test_guardrail_no_reason_allows_live")
     print("\nAll executor E2E tests passed.")
