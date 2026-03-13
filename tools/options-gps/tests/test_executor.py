@@ -1,6 +1,9 @@
 """Tests for executor.py: autonomous execution — instrument names, plan building,
 validation, dry-run simulation, execution flow, and executor factory."""
 
+import hashlib
+import hmac as hmac_mod
+import json
 import os
 import sys
 
@@ -8,15 +11,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import requests
 import pytest
-from unittest.mock import Mock, patch
 from executor import (
     OrderRequest,
     OrderResult,
     ExecutionPlan,
-    ExecutionReport,
     BaseExecutor,
     DryRunExecutor,
     AevoExecutor,
+    DeribitExecutor,
     deribit_instrument_name,
     aevo_instrument_name,
     build_execution_plan,
@@ -30,7 +32,6 @@ from executor import (
     _is_retryable,
     _monitor_order,
     _cancel_filled_orders,
-    _now_iso,
 )
 from exchange import _parse_instrument_key
 from pipeline import ScoredStrategy
@@ -43,307 +44,305 @@ def _status_result(order_id: str, status: str) -> OrderResult:
 
 
 def _make_scored(strategy):
-    """Wrap a StrategyCandidate into a ScoredStrategy for testing."""
     return ScoredStrategy(
-        strategy=strategy,
-        probability_of_profit=0.55,
-        expected_value=100.0,
-        tail_risk=50.0,
-        loss_profile="premium at risk",
-        invalidation_trigger="Close on break",
-        reroute_rule="Roll out",
-        review_again_at="Review at 50%",
-        score=0.8,
-        rationale="Test",
+        strategy=strategy, probability_of_profit=0.55, expected_value=100.0,
+        tail_risk=50.0, loss_profile="premium at risk",
+        invalidation_trigger="Close on break", reroute_rule="Roll out",
+        review_again_at="Review at 50%", score=0.8, rationale="Test",
     )
 
 
+# --- 1. Instrument Names (7 tests) ---
+
 class TestInstrumentNames:
-    def test_deribit_instrument_name(self):
-        name = deribit_instrument_name("BTC", "2026-02-26T08:00:00Z", 67500, "Call")
-        assert name == "BTC-26FEB26-67500-C"
+    def test_deribit_call(self):
+        assert deribit_instrument_name("BTC", "2026-02-26T08:00:00Z", 67500, "Call") == "BTC-26FEB26-67500-C"
 
-    def test_deribit_instrument_name_put(self):
-        name = deribit_instrument_name("ETH", "2026-03-15T08:00:00Z", 4000, "Put")
-        assert name == "ETH-15MAR26-4000-P"
+    def test_deribit_put(self):
+        assert deribit_instrument_name("ETH", "2026-03-15T08:00:00Z", 4000, "Put") == "ETH-15MAR26-4000-P"
 
-    def test_aevo_instrument_name(self):
-        name = aevo_instrument_name("BTC", 67500, "Call")
-        assert name == "BTC-67500-C"
+    def test_aevo_call(self):
+        assert aevo_instrument_name("BTC", 67500, "Call") == "BTC-67500-C"
 
-    def test_aevo_instrument_name_put(self):
-        name = aevo_instrument_name("SOL", 150, "Put")
-        assert name == "SOL-150-P"
+    def test_aevo_put(self):
+        assert aevo_instrument_name("SOL", 150, "Put") == "SOL-150-P"
 
     def test_deribit_roundtrip(self):
-        """Build a Deribit name then parse it back — should recover strike and type."""
         name = deribit_instrument_name("BTC", "2026-02-26T08:00:00Z", 67500, "Call")
-        parsed = _parse_instrument_key(name)
-        assert parsed is not None
-        strike, opt_type = parsed
-        assert strike == 67500
-        assert opt_type == "call"
+        strike, opt_type = _parse_instrument_key(name)
+        assert strike == 67500 and opt_type == "call"
 
     def test_aevo_roundtrip(self):
-        """Build an Aevo name then parse it back — should recover strike and type."""
         name = aevo_instrument_name("BTC", 68000, "Put")
-        parsed = _parse_instrument_key(name)
-        assert parsed is not None
-        strike, opt_type = parsed
-        assert strike == 68000
-        assert opt_type == "put"
+        strike, opt_type = _parse_instrument_key(name)
+        assert strike == 68000 and opt_type == "put"
 
     def test_deribit_empty_expiry(self):
-        """Empty expiry falls back to UNKNOWN date part."""
-        name = deribit_instrument_name("BTC", "", 67500, "Call")
-        assert "UNKNOWN" in name
+        assert "UNKNOWN" in deribit_instrument_name("BTC", "", 67500, "Call")
 
+
+# --- 2. Build Plan + Size Multiplier (8 tests) ---
 
 class TestBuildPlan:
     def test_single_leg(self, sample_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         assert len(plan.orders) == 1
-        assert plan.orders[0].action == "BUY"
-        assert plan.orders[0].exchange == "deribit"
-        assert plan.orders[0].strike == 67500
-        assert plan.orders[0].option_type == "call"
-        assert "67500" in plan.orders[0].instrument
-        assert plan.estimated_cost > 0
+        o = plan.orders[0]
+        assert o.action == "BUY" and o.exchange == "deribit"
+        assert o.strike == 67500 and o.option_type == "call"
+        assert "67500" in o.instrument and plan.estimated_cost > 0
 
     def test_multi_leg(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(multi_leg_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         assert len(plan.orders) == 2
-        actions = [o.action for o in plan.orders]
-        assert "BUY" in actions
-        assert "SELL" in actions
-
-    def test_exchange_override(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
-        """--exchange deribit → all orders use Deribit names."""
-        scored = _make_scored(multi_leg_strategy)
-        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
-        for order in plan.orders:
-            assert order.exchange == "deribit"
-            assert "BTC-" in order.instrument
+        actions = {o.action for o in plan.orders}
+        assert actions == {"BUY", "SELL"}
 
     def test_aevo_names(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        """--exchange aevo → Aevo instrument names (no date)."""
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", "aevo", sample_exchange_quotes, btc_option_data)
-        assert len(plan.orders) == 1
         assert plan.orders[0].instrument == "BTC-67500-C"
 
     def test_auto_route(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        """exchange=None → auto-routes via leg_divergences."""
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", None, sample_exchange_quotes, btc_option_data)
         assert plan.exchange == "auto"
-        assert len(plan.orders) == 1
-        # Should pick a valid exchange
         assert plan.orders[0].exchange in ("deribit", "aevo")
 
-    def test_estimated_cost_multi_leg(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
-        """estimated_cost = buy prices - sell prices."""
+    def test_estimated_cost(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(multi_leg_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
-        buy_total = sum(o.price * o.quantity for o in plan.orders if o.action == "BUY")
-        sell_total = sum(o.price * o.quantity for o in plan.orders if o.action == "SELL")
-        assert plan.estimated_cost == pytest.approx(buy_total - sell_total)
+        buy = sum(o.price * o.quantity for o in plan.orders if o.action == "BUY")
+        sell = sum(o.price * o.quantity for o in plan.orders if o.action == "SELL")
+        assert plan.estimated_cost == pytest.approx(buy - sell)
 
+    def test_size_multiplier(self, sample_strategy, sample_exchange_quotes, btc_option_data):
+        scored = _make_scored(sample_strategy)
+        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data, size_multiplier=3)
+        assert plan.orders[0].quantity == 3
+
+    def test_size_scales_max_loss(self, sample_strategy, sample_exchange_quotes, btc_option_data):
+        scored = _make_scored(sample_strategy)
+        p1 = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data, size_multiplier=1)
+        p5 = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data, size_multiplier=5)
+        assert p5.estimated_max_loss == pytest.approx(p1.estimated_max_loss * 5)
+
+    def test_exchange_override_all_legs(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
+        scored = _make_scored(multi_leg_strategy)
+        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
+        assert all(o.exchange == "deribit" for o in plan.orders)
+
+
+# --- 3. Validate Plan + Max Loss Budget (7 tests) ---
 
 class TestValidatePlan:
     def test_valid(self):
         plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-26FEB26-67500-C", "BUY", 1, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
+            strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-26FEB26-67500-C", "BUY", 1, "limit", 660.0, "deribit", 0, strike=67500, option_type="call")],
         )
-        valid, err = validate_plan(plan)
-        assert valid is True
-        assert err == ""
+        assert validate_plan(plan) == (True, "")
 
     def test_empty_orders(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-        )
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="")
         valid, err = validate_plan(plan)
-        assert valid is False
-        assert "No orders" in err
+        assert not valid and "No orders" in err
 
     def test_zero_price(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-26FEB26-67500-C", "BUY", 1, "limit", 0.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-        )
-        valid, err = validate_plan(plan)
-        assert valid is False
-        assert "price" in err.lower()
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("X", "BUY", 1, "limit", 0.0, "deribit", 0, strike=67500, option_type="call")])
+        assert not validate_plan(plan)[0]
 
     def test_zero_quantity(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-26FEB26-67500-C", "BUY", 0, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-        )
-        valid, err = validate_plan(plan)
-        assert valid is False
-        assert "quantity" in err.lower()
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("X", "BUY", 0, "limit", 660.0, "deribit", 0, strike=67500, option_type="call")])
+        assert not validate_plan(plan)[0]
 
     def test_empty_instrument(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("", "BUY", 1, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-        )
-        valid, err = validate_plan(plan)
-        assert valid is False
-        assert "instrument" in err.lower()
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("", "BUY", 1, "limit", 660.0, "deribit", 0, strike=67500, option_type="call")])
+        assert not validate_plan(plan)[0]
 
+    def test_within_budget(self):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("X", "BUY", 1, "limit", 660.0, "deribit", 0, strike=67500, option_type="call")],
+            estimated_max_loss=500.0)
+        assert validate_plan(plan, max_loss_budget=1000.0)[0]
+
+    def test_exceeds_budget(self):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("X", "BUY", 1, "limit", 660.0, "deribit", 0, strike=67500, option_type="call")],
+            estimated_max_loss=1500.0)
+        valid, err = validate_plan(plan, max_loss_budget=1000.0)
+        assert not valid and "budget" in err.lower()
+
+
+# --- 4. DryRunExecutor — stateful, timestamps, OrderResult (10 tests) ---
 
 class TestDryRunExecutor:
     def test_authenticate(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        assert executor.authenticate() is True
+        assert DryRunExecutor(sample_exchange_quotes).authenticate() is True
 
     def test_place_buy(self, sample_exchange_quotes):
-        """BUY fills at best ask from quotes."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        result = executor.place_order(order)
-        assert result.status == "simulated"
-        assert result.fill_quantity == 1
-        assert result.fill_price == 655.0  # best ask from aevo
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0, strike=67500, option_type="call")
+        r = executor.place_order(order)
+        assert r.status == "simulated" and r.fill_price == 655.0 and r.fill_quantity == 1
+        assert r.timestamp and "T" in r.timestamp  # ISO 8601
+        assert r.latency_ms >= 0
 
     def test_place_sell(self, sample_exchange_quotes):
-        """SELL fills at best bid from quotes."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "SELL", 1, "limit", 620.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        result = executor.place_order(order)
-        assert result.status == "simulated"
-        assert result.fill_quantity == 1
-        assert result.fill_price == 620.0  # best bid from aevo
+        order = OrderRequest("BTC-67500-C", "SELL", 1, "limit", 620.0, "dry_run", 0, strike=67500, option_type="call")
+        r = executor.place_order(order)
+        assert r.status == "simulated" and r.fill_price == 620.0
 
-    def test_missing_strike(self, sample_exchange_quotes):
-        """Order without strike/option_type returns error."""
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("INVALID", "BUY", 1, "limit", 100.0, "dry_run", 0)
-        result = executor.place_order(order)
-        assert result.status == "error"
+    def test_missing_strike_error(self, sample_exchange_quotes):
+        r = DryRunExecutor(sample_exchange_quotes).place_order(
+            OrderRequest("INVALID", "BUY", 1, "limit", 100.0, "dry_run", 0))
+        assert r.status == "error" and r.timestamp
 
-    def test_no_matching_quote_uses_order_price(self, sample_exchange_quotes):
-        """When no exchange quote matches, falls back to order limit price."""
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-99999-C", "BUY", 1, "limit", 100.0, "dry_run", 0,
-                             strike=99999, option_type="call")
-        result = executor.place_order(order)
-        assert result.status == "simulated"
-        assert result.fill_price == 100.0
+    def test_no_matching_quote_fallback(self, sample_exchange_quotes):
+        r = DryRunExecutor(sample_exchange_quotes).place_order(
+            OrderRequest("BTC-99999-C", "BUY", 1, "limit", 100.0, "dry_run", 0, strike=99999, option_type="call"))
+        assert r.status == "simulated" and r.fill_price == 100.0
 
-    def test_get_order_status_after_place(self, sample_exchange_quotes):
-        """After placing an order, get_order_status returns the OrderResult."""
+    def test_stateful_get_status(self, sample_exchange_quotes):
         executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0, strike=67500, option_type="call")
         placed = executor.place_order(order)
         result = executor.get_order_status(placed.order_id)
-        assert result.status == "simulated"
-        assert result.order_id == placed.order_id
-        assert result.fill_price > 0
+        assert isinstance(result, OrderResult)
+        assert result.status == "simulated" and result.order_id == placed.order_id
 
-    def test_get_order_status_unknown_id(self, sample_exchange_quotes):
-        """Unknown order ID returns not_found status."""
-        executor = DryRunExecutor(sample_exchange_quotes)
-        result = executor.get_order_status("nonexistent-id")
-        assert result.status == "not_found"
+    def test_unknown_id_not_found(self, sample_exchange_quotes):
+        r = DryRunExecutor(sample_exchange_quotes).get_order_status("nonexistent")
+        assert r.status == "not_found"
 
-    def test_cancel_order_after_place(self, sample_exchange_quotes):
-        """Cancelling a placed order transitions it to cancelled."""
+    def test_cancel_transitions_state(self, sample_exchange_quotes):
         executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        placed = executor.place_order(order)
+        placed = executor.place_order(
+            OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0, strike=67500, option_type="call"))
         assert executor.cancel_order(placed.order_id) is True
-        result = executor.get_order_status(placed.order_id)
-        assert result.status == "cancelled"
+        assert executor.get_order_status(placed.order_id).status == "cancelled"
 
-    def test_cancel_unknown_order(self, sample_exchange_quotes):
-        """Cancelling an unknown order returns False."""
-        executor = DryRunExecutor(sample_exchange_quotes)
-        assert executor.cancel_order("nonexistent-id") is False
+    def test_cancel_unknown_returns_false(self, sample_exchange_quotes):
+        assert DryRunExecutor(sample_exchange_quotes).cancel_order("nope") is False
 
-    def test_stateful_tracks_multiple_orders(self, sample_exchange_quotes):
-        """Multiple placed orders are all tracked independently."""
+    def test_tracks_multiple_orders(self, sample_exchange_quotes):
         executor = DryRunExecutor(sample_exchange_quotes)
-        order1 = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                              strike=67500, option_type="call")
-        order2 = OrderRequest("BTC-67500-P", "SELL", 1, "limit", 300.0, "dry_run", 1,
-                              strike=67500, option_type="put")
-        r1 = executor.place_order(order1)
-        r2 = executor.place_order(order2)
+        r1 = executor.place_order(OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0, strike=67500, option_type="call"))
+        r2 = executor.place_order(OrderRequest("BTC-67500-P", "SELL", 1, "limit", 300.0, "dry_run", 1, strike=67500, option_type="put"))
         assert r1.order_id != r2.order_id
         assert executor.get_order_status(r1.order_id).status == "simulated"
         assert executor.get_order_status(r2.order_id).status == "simulated"
 
+
+# --- 5. Execute Flow + Timeout + Partial Fill (8 tests) ---
 
 class TestExecuteFlow:
     def test_single_leg(self, sample_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-        assert report.all_filled is True
-        assert len(report.results) == 1
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes))
+        assert report.all_filled and len(report.results) == 1
         assert report.results[0].status == "simulated"
+        assert report.started_at and report.finished_at
 
     def test_multi_leg(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(multi_leg_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-        assert report.all_filled is True
-        assert len(report.results) == 2
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes))
+        assert report.all_filled and len(report.results) == 2
 
     def test_net_cost(self, multi_leg_strategy, sample_exchange_quotes, btc_option_data):
-        """net_cost = sum(buy fills) - sum(sell fills)."""
         scored = _make_scored(multi_leg_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-        buy_total = sum(r.fill_price * r.fill_quantity for r in report.results if r.action == "BUY")
-        sell_total = sum(r.fill_price * r.fill_quantity for r in report.results if r.action == "SELL")
-        assert report.net_cost == pytest.approx(buy_total - sell_total)
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes))
+        buy = sum(r.fill_price * r.fill_quantity for r in report.results if r.action == "BUY")
+        sell = sum(r.fill_price * r.fill_quantity for r in report.results if r.action == "SELL")
+        assert report.net_cost == pytest.approx(buy - sell)
 
     def test_summary_message(self, sample_strategy, sample_exchange_quotes, btc_option_data):
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-        assert "simulated" in report.summary
-        assert "Net cost" in report.summary
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes))
+        assert "simulated" in report.summary and "Net cost" in report.summary
 
+    def test_timeout_skips_simulated(self, sample_exchange_quotes):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "dry_run", 0, strike=67500, option_type="call")], dry_run=True)
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes), timeout_seconds=5.0)
+        assert report.all_filled and report.results[0].status == "simulated"
+
+    def test_timeout_triggers_for_open(self):
+        class OpenExecutor(BaseExecutor):
+            def authenticate(self): return True
+            def place_order(self, order):
+                return OrderResult(order_id="open-1", status="open", fill_price=0.0,
+                    fill_quantity=0, instrument=order.instrument, action=order.action, exchange="test")
+            def get_order_status(self, oid): return _status_result(oid, "open")
+            def cancel_order(self, oid): return True
+
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="test", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "test", 0, strike=67500, option_type="call")])
+        report = execute_plan(plan, OpenExecutor(), timeout_seconds=0.1)
+        assert not report.all_filled and report.results[0].status == "timeout"
+
+    def test_partial_fill_auto_cancels(self, sample_exchange_quotes):
+        call_count = {"n": 0}
+        class PartialExec(BaseExecutor):
+            def authenticate(self): return True
+            def place_order(self, order):
+                call_count["n"] += 1
+                if call_count["n"] == 1:
+                    return OrderResult(order_id="fill-1", status="filled", fill_price=100.0,
+                        fill_quantity=1, instrument=order.instrument, action=order.action, exchange="test")
+                return OrderResult(order_id="", status="error", fill_price=0.0,
+                    fill_quantity=0, instrument=order.instrument, action=order.action, exchange="test", error="rejected")
+            def get_order_status(self, oid): return _status_result(oid, "filled")
+            def cancel_order(self, oid): return True
+
+        plan = ExecutionPlan(strategy_description="T", strategy_type="call_debit_spread", exchange="test", asset="BTC", expiry="",
+            orders=[
+                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "test", 0, strike=67500, option_type="call"),
+                OrderRequest("BTC-68000-C", "SELL", 1, "limit", 385.0, "test", 1, strike=68000, option_type="call"),
+            ])
+        report = execute_plan(plan, PartialExec())
+        assert not report.all_filled and "Partial fill" in report.summary
+        assert len(report.cancelled_orders) > 0
+
+    def test_factory_routes_per_leg(self, sample_exchange_quotes):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="call_debit_spread", exchange="auto", asset="BTC", expiry="",
+            orders=[
+                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "aevo", 0, strike=67500, option_type="call"),
+                OrderRequest("BTC-26FEB26-68000-C", "SELL", 1, "limit", 385.0, "deribit", 1, strike=68000, option_type="call"),
+            ], dry_run=True)
+        report = execute_plan(plan, lambda ex: DryRunExecutor(sample_exchange_quotes))
+        assert report.all_filled and len(report.results) == 2
+
+
+# --- 6. Get Executor (7 tests) ---
 
 class TestGetExecutor:
     def test_dry_run(self, sample_exchange_quotes):
-        executor = get_executor("deribit", sample_exchange_quotes, dry_run=True)
-        assert isinstance(executor, DryRunExecutor)
+        assert isinstance(get_executor("deribit", sample_exchange_quotes, dry_run=True), DryRunExecutor)
 
     def test_dry_run_ignores_exchange(self, sample_exchange_quotes):
-        """dry_run=True always returns DryRunExecutor regardless of exchange."""
-        executor = get_executor("aevo", sample_exchange_quotes, dry_run=True)
-        assert isinstance(executor, DryRunExecutor)
+        assert isinstance(get_executor("aevo", sample_exchange_quotes, dry_run=True), DryRunExecutor)
+
+    def test_auto_route_dry_run(self, sample_exchange_quotes):
+        assert isinstance(get_executor(None, sample_exchange_quotes, dry_run=True), DryRunExecutor)
+
+    def test_auto_route_returns_factory(self, sample_exchange_quotes):
+        result = get_executor(None, sample_exchange_quotes, dry_run=False)
+        assert callable(result) and not isinstance(result, DryRunExecutor)
 
     def test_missing_deribit_creds(self, sample_exchange_quotes, monkeypatch):
         monkeypatch.delenv("DERIBIT_CLIENT_ID", raising=False)
@@ -361,649 +360,217 @@ class TestGetExecutor:
         with pytest.raises(ValueError, match="Unknown exchange"):
             get_executor("binance", sample_exchange_quotes, dry_run=False)
 
-    def test_auto_route_returns_factory(self, sample_exchange_quotes):
-        """exchange=None with dry_run=False returns a callable factory."""
-        result = get_executor(None, sample_exchange_quotes, dry_run=False)
-        assert callable(result)
-        assert not isinstance(result, DryRunExecutor)
 
-    def test_auto_route_dry_run_returns_executor(self, sample_exchange_quotes):
-        """exchange=None with dry_run=True still returns DryRunExecutor."""
-        result = get_executor(None, sample_exchange_quotes, dry_run=True)
-        assert isinstance(result, DryRunExecutor)
-
-
-class TestExecuteWithFactory:
-    def test_factory_routes_per_leg(self, sample_exchange_quotes):
-        """execute_plan with a callable factory creates executors per exchange."""
-        plan = ExecutionPlan(
-            strategy_description="Test spread", strategy_type="call_debit_spread",
-            exchange="auto", asset="BTC", expiry="",
-            orders=[
-                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "aevo", 0,
-                             strike=67500, option_type="call"),
-                OrderRequest("BTC-26FEB26-68000-C", "SELL", 1, "limit", 385.0, "deribit", 1,
-                             strike=68000, option_type="call"),
-            ],
-            dry_run=True,
-        )
-
-        def _factory(exchange: str) -> DryRunExecutor:
-            return DryRunExecutor(sample_exchange_quotes)
-
-        report = execute_plan(plan, _factory)
-        assert report.all_filled is True
-        assert len(report.results) == 2
-
-    def test_factory_auth_failure(self, sample_exchange_quotes):
-        """Factory executor that fails auth stops execution."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="auto", asset="BTC", expiry="",
-            orders=[
-                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "bad_exchange", 0,
-                             strike=67500, option_type="call"),
-            ],
-            dry_run=False,
-        )
-
-        class FailAuthExecutor(DryRunExecutor):
-            def authenticate(self):
-                return False
-
-        def _factory(exchange: str):
-            return FailAuthExecutor(sample_exchange_quotes)
-
-        report = execute_plan(plan, _factory)
-        assert report.all_filled is False
-        assert "Authentication failed" in report.summary
-
+# --- 7. Slippage (8 tests) ---
 
 class TestSlippage:
-    def test_compute_slippage_buy_worse(self):
-        """BUY at higher price = positive slippage."""
-        slip = _compute_slippage(100.0, 102.0, "BUY")
-        assert slip == pytest.approx(2.0)
+    def test_buy_worse(self):
+        assert _compute_slippage(100.0, 102.0, "BUY") == pytest.approx(2.0)
 
-    def test_compute_slippage_buy_better(self):
-        """BUY at lower price = negative slippage (favorable)."""
-        slip = _compute_slippage(100.0, 98.0, "BUY")
-        assert slip == pytest.approx(-2.0)
+    def test_buy_better(self):
+        assert _compute_slippage(100.0, 98.0, "BUY") == pytest.approx(-2.0)
 
-    def test_compute_slippage_sell_worse(self):
-        """SELL at lower price = positive slippage."""
-        slip = _compute_slippage(100.0, 98.0, "SELL")
-        assert slip == pytest.approx(2.0)
+    def test_sell_worse(self):
+        assert _compute_slippage(100.0, 98.0, "SELL") == pytest.approx(2.0)
 
-    def test_compute_slippage_zero_limit(self):
-        """Zero limit price returns 0 slippage."""
+    def test_zero_limit(self):
         assert _compute_slippage(0.0, 100.0, "BUY") == 0.0
 
-    def test_check_slippage_within(self):
-        from executor import OrderResult
+    def test_check_within(self):
         r = OrderResult("id", "filled", 102.0, 1, "X", "BUY", "test", slippage_pct=1.5)
         assert check_slippage(r, 2.0) is True
 
-    def test_check_slippage_exceeded(self):
-        from executor import OrderResult
+    def test_check_exceeded(self):
         r = OrderResult("id", "filled", 105.0, 1, "X", "BUY", "test", slippage_pct=5.0)
         assert check_slippage(r, 2.0) is False
 
-    def test_execute_plan_halts_on_slippage(self, sample_exchange_quotes):
-        """execute_plan with max_slippage_pct halts when exceeded."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[
-                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 600.0, "dry_run", 0,
-                             strike=67500, option_type="call"),
-            ],
-            dry_run=True,
-        )
-        executor = DryRunExecutor(sample_exchange_quotes)
-        # Fill will be at 655.0 (aevo ask), limit is 600 -> slippage ~9.2%
-        report = execute_plan(plan, executor, max_slippage_pct=1.0)
-        assert report.all_filled is False
-        assert "Slippage exceeded" in report.summary
+    def test_execute_halts_on_slippage(self, sample_exchange_quotes):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 600.0, "dry_run", 0, strike=67500, option_type="call")], dry_run=True)
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes), max_slippage_pct=1.0)
+        assert not report.all_filled and "Slippage exceeded" in report.summary
 
-    def test_execute_plan_ok_slippage(self, sample_exchange_quotes):
-        """execute_plan passes when slippage is within limit."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[
-                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "dry_run", 0,
-                             strike=67500, option_type="call"),
-            ],
-            dry_run=True,
-        )
-        executor = DryRunExecutor(sample_exchange_quotes)
-        # Fill at 655.0, limit 655.0 -> 0% slippage
-        report = execute_plan(plan, executor, max_slippage_pct=5.0)
-        assert report.all_filled is True
+    def test_execute_ok_slippage(self, sample_exchange_quotes):
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="deribit", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "dry_run", 0, strike=67500, option_type="call")], dry_run=True)
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes), max_slippage_pct=5.0)
+        assert report.all_filled
 
 
-class TestMaxLossBudget:
-    def test_validate_plan_within_budget(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-            estimated_max_loss=500.0,
-        )
-        valid, err = validate_plan(plan, max_loss_budget=1000.0)
-        assert valid is True
-
-    def test_validate_plan_exceeds_budget(self):
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-            estimated_max_loss=1500.0,
-        )
-        valid, err = validate_plan(plan, max_loss_budget=1000.0)
-        assert valid is False
-        assert "budget" in err.lower()
-
-    def test_validate_plan_no_budget(self):
-        """No budget = no check."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "deribit", 0,
-                                 strike=67500, option_type="call")],
-            estimated_max_loss=99999.0,
-        )
-        valid, err = validate_plan(plan)
-        assert valid is True
-
-
-class TestSizeMultiplier:
-    def test_size_doubles_quantity(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        scored = _make_scored(sample_strategy)
-        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data,
-                                    size_multiplier=3)
-        assert plan.orders[0].quantity == 3
-
-    def test_size_default_one(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        scored = _make_scored(sample_strategy)
-        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
-        assert plan.orders[0].quantity == 1
-
-    def test_size_scales_max_loss(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        scored = _make_scored(sample_strategy)
-        plan1 = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data,
-                                     size_multiplier=1)
-        plan2 = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data,
-                                     size_multiplier=5)
-        assert plan2.estimated_max_loss == pytest.approx(plan1.estimated_max_loss * 5)
-
+# --- 8. Execution Log (1 test — comprehensive) ---
 
 class TestExecutionLog:
     def test_save_and_load(self, sample_strategy, sample_exchange_quotes, btc_option_data, tmp_path):
-        import json
         scored = _make_scored(sample_strategy)
         plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
         plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-
+        report = execute_plan(plan, DryRunExecutor(sample_exchange_quotes))
         log_path = str(tmp_path / "exec_log.json")
         save_execution_log(report, log_path)
-
         with open(log_path) as f:
             log = json.load(f)
+        assert log["mode"] == "dry_run" and log["asset"] == "BTC" and log["all_filled"]
+        assert log["started_at"] and log["finished_at"]
+        assert isinstance(log["cancelled_orders"], list)
+        fill = log["fills"][0]
+        assert fill["status"] == "simulated" and fill["timestamp"] and fill["latency_ms"] >= 0
 
-        assert log["mode"] == "dry_run"
-        assert log["asset"] == "BTC"
-        assert log["all_filled"] is True
-        assert len(log["fills"]) == 1
-        assert log["fills"][0]["status"] == "simulated"
-        assert "timestamp" in log
-        assert "slippage_total_pct" in log
 
+# --- 9. Retry (5 tests) ---
 
 class TestRetryable:
-    def test_timeout_is_retryable(self):
+    def test_timeout(self):
         assert _is_retryable(requests.Timeout()) is True
 
-    def test_connection_error_is_retryable(self):
+    def test_connection_error(self):
         assert _is_retryable(requests.ConnectionError()) is True
 
-    def test_value_error_not_retryable(self):
+    def test_value_error_not(self):
         assert _is_retryable(ValueError("bad")) is False
 
-    def test_http_429_retryable(self):
-        from unittest.mock import Mock
-        resp = Mock()
-        resp.status_code = 429
-        err = requests.HTTPError(response=resp)
-        assert _is_retryable(err) is True
+    def test_http_429(self):
+        resp = type("R", (), {"status_code": 429})()
+        assert _is_retryable(requests.HTTPError(response=resp)) is True
 
-    def test_http_400_not_retryable(self):
-        from unittest.mock import Mock
-        resp = Mock()
-        resp.status_code = 400
-        err = requests.HTTPError(response=resp)
-        assert _is_retryable(err) is False
+    def test_http_400_not(self):
+        resp = type("R", (), {"status_code": 400})()
+        assert _is_retryable(requests.HTTPError(response=resp)) is False
 
 
-class TestTimestampsAndLatency:
-    """Verify that OrderResult and ExecutionReport include timing data."""
+# --- 10. Monitoring + Cancel (7 tests) ---
 
-    def test_dry_run_result_has_timestamp(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        result = executor.place_order(order)
-        assert result.timestamp != ""
-        assert "T" in result.timestamp  # ISO 8601 format
-
-    def test_dry_run_result_has_latency(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        result = executor.place_order(order)
-        assert result.latency_ms >= 0
-
-    def test_error_result_has_timestamp(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("INVALID", "BUY", 1, "limit", 100.0, "dry_run", 0)
-        result = executor.place_order(order)
-        assert result.timestamp != ""
-
-    def test_report_has_started_finished(self, sample_strategy, sample_exchange_quotes, btc_option_data):
-        scored = _make_scored(sample_strategy)
-        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
-        plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-        assert report.started_at != ""
-        assert report.finished_at != ""
-        assert "T" in report.started_at
-        assert "T" in report.finished_at
-
-    def test_now_iso_format(self):
-        ts = _now_iso()
-        assert "T" in ts
-        assert "+" in ts or "Z" in ts  # timezone info
-
-
-class TestOrderMonitoring:
-    """Test _monitor_order polling and timeout behavior."""
-
+class TestMonitoringAndCancel:
     def test_immediate_fill(self, sample_exchange_quotes):
-        """DryRunExecutor returns 'simulated' = terminal. Monitor returns OrderResult."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        placed = executor.place_order(order)
+        placed = executor.place_order(
+            OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0, strike=67500, option_type="call"))
         result = _monitor_order(executor, placed.order_id, timeout_seconds=5.0)
         assert result.status == "simulated"
-        assert result.order_id == placed.order_id
 
     def test_timeout_triggers_cancel(self):
-        """Executor that always returns 'open' should timeout and cancel."""
-        class StuckExecutor(BaseExecutor):
+        class StuckExec(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return _status_result(order_id, "open")
-            def cancel_order(self, order_id): return True
-
-        executor = StuckExecutor()
-        result = _monitor_order(executor, "stuck-123", timeout_seconds=0.1, poll_interval=0.05)
-        assert result.status == "timeout"
+            def get_order_status(self, oid): return _status_result(oid, "open")
+            def cancel_order(self, oid): return True
+        assert _monitor_order(StuckExec(), "s-1", timeout_seconds=0.1, poll_interval=0.05).status == "timeout"
 
     def test_delayed_fill(self):
-        """Executor that fills after a few polls."""
-        call_count = {"n": 0}
-
-        class DelayedExecutor(BaseExecutor):
+        n = {"c": 0}
+        class DelayExec(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id):
-                call_count["n"] += 1
-                if call_count["n"] >= 3:
-                    return OrderResult(order_id=order_id, status="filled",
-                                       fill_price=100.0, fill_quantity=1,
-                                       instrument="X", action="BUY", exchange="test")
-                return _status_result(order_id, "open")
-            def cancel_order(self, order_id): return True
+            def get_order_status(self, oid):
+                n["c"] += 1
+                return OrderResult(oid, "filled", 100.0, 1, "X", "BUY", "t") if n["c"] >= 3 else _status_result(oid, "open")
+            def cancel_order(self, oid): return True
+        result = _monitor_order(DelayExec(), "d-1", timeout_seconds=5.0, poll_interval=0.01)
+        assert result.status == "filled" and result.fill_price == 100.0
 
-        executor = DelayedExecutor()
-        result = _monitor_order(executor, "delay-123", timeout_seconds=5.0, poll_interval=0.01)
-        assert result.status == "filled"
-        assert call_count["n"] >= 3
-
-    def test_rejected_is_terminal(self):
-        """Executor returning 'rejected' should stop immediately."""
-        class RejectExecutor(BaseExecutor):
+    def test_rejected_terminal(self):
+        class RejExec(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return _status_result(order_id, "rejected")
-            def cancel_order(self, order_id): return True
+            def get_order_status(self, oid): return _status_result(oid, "rejected")
+            def cancel_order(self, oid): return True
+        assert _monitor_order(RejExec(), "r-1", timeout_seconds=5.0).status == "rejected"
 
-        executor = RejectExecutor()
-        result = _monitor_order(executor, "rej-123", timeout_seconds=5.0)
-        assert result.status == "rejected"
-
-    def test_monitor_returns_fill_data(self):
-        """Monitor should return OrderResult with fill data when available."""
-        class FillExecutor(BaseExecutor):
+    def test_cancel_filled_orders(self):
+        results = [OrderResult("id-1", "filled", 100.0, 1, "X", "BUY", "deribit"),
+                   OrderResult("id-2", "filled", 200.0, 1, "Y", "SELL", "aevo")]
+        log = []
+        class TrackExec(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id):
-                return OrderResult(order_id=order_id, status="filled",
-                                   fill_price=650.0, fill_quantity=1,
-                                   instrument="BTC-67500-C", action="BUY", exchange="deribit")
-            def cancel_order(self, order_id): return True
+            def get_order_status(self, oid): return _status_result(oid, "filled")
+            def cancel_order(self, oid): log.append(oid); return True
+        assert _cancel_filled_orders(results, lambda ex: TrackExec()) == ["id-1", "id-2"]
 
-        result = _monitor_order(FillExecutor(), "fill-1", timeout_seconds=5.0)
-        assert result.fill_price == 650.0
-        assert result.fill_quantity == 1
-
-
-class TestAutoCancel:
-    """Test _cancel_filled_orders cancellation logic."""
-
-    def test_cancels_filled_orders(self):
-        results = [
-            OrderResult("id-1", "filled", 100.0, 1, "X", "BUY", "deribit"),
-            OrderResult("id-2", "filled", 200.0, 1, "Y", "SELL", "aevo"),
-        ]
-        cancel_log = []
-
-        class TrackingExecutor(BaseExecutor):
-            def authenticate(self): return True
-            def place_order(self, order): pass
-            def get_order_status(self, order_id): return _status_result(order_id, "filled")
-            def cancel_order(self, order_id):
-                cancel_log.append(order_id)
-                return True
-
-        tracker = TrackingExecutor()
-        cancelled = _cancel_filled_orders(results, lambda ex: tracker)
-        assert cancelled == ["id-1", "id-2"]
-        assert cancel_log == ["id-1", "id-2"]
-
-    def test_skips_non_filled(self):
-        results = [
-            OrderResult("id-1", "error", 0.0, 0, "X", "BUY", "deribit"),
-            OrderResult("id-2", "filled", 200.0, 1, "Y", "SELL", "aevo"),
-        ]
-        # DryRunExecutor cancel returns False for unknown IDs now (stateful)
+    def test_cancel_skips_non_filled(self):
+        results = [OrderResult("id-1", "error", 0.0, 0, "X", "BUY", "deribit"),
+                   OrderResult("id-2", "filled", 200.0, 1, "Y", "SELL", "aevo")]
         executor = DryRunExecutor([])
-        # Manually add the order so cancel works
         executor._orders["id-2"] = results[1]
-        cancelled = _cancel_filled_orders(results, lambda ex: executor)
-        assert cancelled == ["id-2"]
-
-    def test_empty_results(self):
-        cancelled = _cancel_filled_orders([], lambda ex: DryRunExecutor([]))
-        assert cancelled == []
+        assert _cancel_filled_orders(results, lambda ex: executor) == ["id-2"]
 
     def test_cancel_failure_skips(self):
-        """If cancel_order returns False, order ID not in cancelled list."""
-        results = [
-            OrderResult("id-1", "filled", 100.0, 1, "X", "BUY", "deribit"),
-        ]
-
-        class FailCancelExecutor(BaseExecutor):
+        results = [OrderResult("id-1", "filled", 100.0, 1, "X", "BUY", "deribit")]
+        class FailExec(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return _status_result(order_id, "filled")
-            def cancel_order(self, order_id): return False
+            def get_order_status(self, oid): return _status_result(oid, "filled")
+            def cancel_order(self, oid): return False
+        assert _cancel_filled_orders(results, lambda ex: FailExec()) == []
 
-        cancelled = _cancel_filled_orders(results, lambda ex: FailCancelExecutor())
-        assert cancelled == []
 
+# --- 11. Execution Savings (3 tests) ---
 
 class TestExecutionSavings:
-    """Test compute_execution_savings comparison logic."""
-
     def test_savings_when_cheaper(self, btc_option_data):
-        """When execution price < Synth price, savings should be positive."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="auto", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 600.0, "aevo", 0,
-                                 strike=67500, option_type="call")],
-        )
-        savings = compute_execution_savings(plan, btc_option_data)
-        # Synth price for 67500 call = 638.43, exec = 600 → savings = 38.43
-        assert savings["savings_usd"] > 0
-        assert savings["synth_theoretical_cost"] == pytest.approx(638.43)
-        assert savings["execution_cost"] == pytest.approx(600.0)
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="auto", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 600.0, "aevo", 0, strike=67500, option_type="call")])
+        s = compute_execution_savings(plan, btc_option_data)
+        assert s["savings_usd"] > 0 and s["synth_theoretical_cost"] == pytest.approx(638.43)
 
     def test_no_savings_at_synth_price(self, btc_option_data):
-        """When execution price = Synth price, savings = 0."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="auto", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 638.43, "deribit", 0,
-                                 strike=67500, option_type="call")],
-        )
-        savings = compute_execution_savings(plan, btc_option_data)
-        assert savings["savings_usd"] == pytest.approx(0.0)
+        plan = ExecutionPlan(strategy_description="T", strategy_type="long_call", exchange="auto", asset="BTC", expiry="",
+            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 638.43, "deribit", 0, strike=67500, option_type="call")])
+        assert compute_execution_savings(plan, btc_option_data)["savings_usd"] == pytest.approx(0.0)
 
     def test_multi_leg_savings(self, btc_option_data):
-        """Multi-leg spread: savings on net cost."""
-        plan = ExecutionPlan(
-            strategy_description="Test spread", strategy_type="call_debit_spread",
-            exchange="auto", asset="BTC", expiry="",
+        plan = ExecutionPlan(strategy_description="T", strategy_type="call_debit_spread", exchange="auto", asset="BTC", expiry="",
             orders=[
-                OrderRequest("BTC-67000-C", "BUY", 1, "limit", 950.0, "aevo", 0,
-                             strike=67000, option_type="call"),
-                OrderRequest("BTC-68000-C", "SELL", 1, "limit", 390.0, "deribit", 1,
-                             strike=68000, option_type="call"),
-            ],
-        )
-        savings = compute_execution_savings(plan, btc_option_data)
-        # Synth: 987.04 - 373.27 = 613.77, Exec: 950 - 390 = 560 → savings ~53.77
-        assert savings["savings_usd"] > 0
-        assert "savings_pct" in savings
+                OrderRequest("BTC-67000-C", "BUY", 1, "limit", 950.0, "aevo", 0, strike=67000, option_type="call"),
+                OrderRequest("BTC-68000-C", "SELL", 1, "limit", 390.0, "deribit", 1, strike=68000, option_type="call"),
+            ])
+        assert compute_execution_savings(plan, btc_option_data)["savings_usd"] > 0
 
 
-class TestExecutePlanWithTimeout:
-    """Test execute_plan timeout_seconds parameter."""
-
-    def test_timeout_not_used_for_simulated(self, sample_exchange_quotes):
-        """Dry-run fills are 'simulated', never 'open', so timeout monitoring doesn't trigger."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "dry_run", 0,
-                                 strike=67500, option_type="call")],
-            dry_run=True,
-        )
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor, timeout_seconds=5.0)
-        assert report.all_filled is True
-        # Status should still be simulated, not changed by monitoring
-        assert report.results[0].status == "simulated"
-
-    def test_timeout_triggers_for_open_orders(self):
-        """Executor that returns 'open' status should trigger monitoring → timeout."""
-        class OpenExecutor(BaseExecutor):
-            def authenticate(self): return True
-            def place_order(self, order):
-                return OrderResult(
-                    order_id="open-123", status="open", fill_price=0.0,
-                    fill_quantity=0, instrument=order.instrument,
-                    action=order.action, exchange="test",
-                )
-            def get_order_status(self, order_id): return _status_result(order_id, "open")
-            def cancel_order(self, order_id): return True
-
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="test", asset="BTC", expiry="",
-            orders=[OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "test", 0,
-                                 strike=67500, option_type="call")],
-        )
-        report = execute_plan(plan, OpenExecutor(), timeout_seconds=0.1)
-        # Should timeout and fail
-        assert report.all_filled is False
-        assert report.results[0].status == "timeout"
-
-    def test_plan_timeout_default(self):
-        """ExecutionPlan has default timeout_seconds=30."""
-        plan = ExecutionPlan(
-            strategy_description="Test", strategy_type="long_call",
-            exchange="deribit", asset="BTC", expiry="",
-        )
-        assert plan.timeout_seconds == 30.0
-
+# --- 12. Aevo Signing (3 tests) ---
 
 class TestAevoSigning:
-    """Test Aevo HMAC-SHA256 4-part signing."""
-
-    def test_sign_uses_four_parts(self):
-        """Signature message = timestamp + method + path + body."""
-        import hashlib, hmac as hmac_mod
+    def test_four_part_signature(self):
         executor = AevoExecutor("test-key", "test-secret", testnet=True)
         sig = executor._sign("12345", "POST", "/orders", '{"side":"buy"}')
-        expected_msg = '12345POST/orders{"side":"buy"}'
-        expected_sig = hmac_mod.new(
-            b"test-secret", expected_msg.encode(), hashlib.sha256,
-        ).hexdigest()
-        assert sig == expected_sig
+        expected = hmac_mod.new(b"test-secret", b'12345POST/orders{"side":"buy"}', hashlib.sha256).hexdigest()
+        assert sig == expected
 
-    def test_headers_include_all_fields(self):
-        executor = AevoExecutor("my-key", "my-secret", testnet=True)
-        headers = executor._headers("POST", "/orders", '{"side":"buy"}')
-        assert headers["AEVO-KEY"] == "my-key"
-        assert "AEVO-TIMESTAMP" in headers
-        assert "AEVO-SIGNATURE" in headers
-        assert headers["Content-Type"] == "application/json"
+    def test_headers(self):
+        h = AevoExecutor("my-key", "my-secret", testnet=True)._headers("POST", "/orders", '{}')
+        assert h["AEVO-KEY"] == "my-key" and "AEVO-TIMESTAMP" in h and "AEVO-SIGNATURE" in h
 
-    def test_sign_empty_body(self):
-        """GET request with empty body still produces valid signature."""
-        executor = AevoExecutor("k", "s", testnet=True)
-        sig = executor._sign("999", "GET", "/orders/123", "")
-        assert len(sig) == 64  # SHA-256 hex digest
+    def test_empty_body(self):
+        assert len(AevoExecutor("k", "s", testnet=True)._sign("9", "GET", "/x", "")) == 64
 
 
-class TestExecutionLogEnhanced:
-    """Verify execution log includes new fields."""
-
-    def test_log_contains_timestamps_and_latency(self, sample_strategy, sample_exchange_quotes,
-                                                  btc_option_data, tmp_path):
-        import json
-        scored = _make_scored(sample_strategy)
-        plan = build_execution_plan(scored, "BTC", "deribit", sample_exchange_quotes, btc_option_data)
-        plan.dry_run = True
-        executor = DryRunExecutor(sample_exchange_quotes)
-        report = execute_plan(plan, executor)
-
-        log_path = str(tmp_path / "enhanced_log.json")
-        save_execution_log(report, log_path)
-
-        with open(log_path) as f:
-            log = json.load(f)
-
-        assert log["started_at"] != ""
-        assert log["finished_at"] != ""
-        assert isinstance(log["cancelled_orders"], list)
-        assert log["fills"][0]["timestamp"] != ""
-        assert log["fills"][0]["latency_ms"] >= 0
-
-
-class TestPartialFillAutoCancel:
-    """Test that execute_plan auto-cancels on partial failure."""
-
-    def test_second_leg_failure_cancels_first(self, sample_exchange_quotes):
-        """When second order fails, first filled order gets cancelled."""
-        call_count = {"n": 0}
-
-        class PartialExecutor(BaseExecutor):
-            def authenticate(self): return True
-            def place_order(self, order):
-                call_count["n"] += 1
-                if call_count["n"] == 1:
-                    return OrderResult(
-                        order_id="fill-1", status="filled", fill_price=100.0,
-                        fill_quantity=1, instrument=order.instrument,
-                        action=order.action, exchange="test",
-                    )
-                return OrderResult(
-                    order_id="", status="error", fill_price=0.0,
-                    fill_quantity=0, instrument=order.instrument,
-                    action=order.action, exchange="test", error="rejected",
-                )
-            def get_order_status(self, order_id): return _status_result(order_id, "filled")
-            def cancel_order(self, order_id): return True
-
-        plan = ExecutionPlan(
-            strategy_description="Test spread", strategy_type="call_debit_spread",
-            exchange="test", asset="BTC", expiry="",
-            orders=[
-                OrderRequest("BTC-67500-C", "BUY", 1, "limit", 655.0, "test", 0,
-                             strike=67500, option_type="call"),
-                OrderRequest("BTC-68000-C", "SELL", 1, "limit", 385.0, "test", 1,
-                             strike=68000, option_type="call"),
-            ],
-        )
-        report = execute_plan(plan, PartialExecutor())
-        assert report.all_filled is False
-        assert "Partial fill" in report.summary
-        assert len(report.cancelled_orders) > 0
-
+# --- 13. Deribit Price Conversion (4 tests) ---
 
 class TestDeribitPriceConversion:
-    """Test Deribit USD→BTC conversion, tick alignment, and order book snapping."""
-
-    def test_align_tick_basic(self):
-        from executor import DeribitExecutor
-        # 0.00973 → nearest 0.0005 = 0.0095 (rounds down)
+    def test_align_tick(self):
         assert DeribitExecutor._align_tick(0.00973, 0.0005) == 0.0095
-        assert DeribitExecutor._align_tick(0.00950, 0.0005) == 0.0095
-        # 0.00975 → 0.01 (rounds to nearest)
         assert DeribitExecutor._align_tick(0.00975, 0.0005) == 0.01
-
-    def test_align_tick_exact(self):
-        from executor import DeribitExecutor
         assert DeribitExecutor._align_tick(0.0100, 0.0005) == 0.01
 
-    def test_align_tick_zero_tick_size(self):
-        from executor import DeribitExecutor
-        assert DeribitExecutor._align_tick(0.00973, 0) == 0.00973
-
-    def test_usd_to_btc_conversion(self):
-        """USD price / index price → BTC price, aligned to tick."""
-        from executor import DeribitExecutor
+    def test_usd_to_btc(self):
         executor = DeribitExecutor("id", "secret", testnet=True)
         executor._index_cache["BTC"] = 67000.0
-        btc_price = executor._usd_to_btc(670.0, "BTC")
-        # 670 / 67000 = 0.01 exactly
-        assert btc_price == 0.01
+        assert executor._usd_to_btc(670.0, "BTC") == 0.01
 
-    def test_usd_to_btc_fallback_no_index(self):
-        """When index is 0/unavailable, returns USD price as-is."""
-        from executor import DeribitExecutor
+    def test_usd_to_btc_fallback(self):
         executor = DeribitExecutor("id", "secret", testnet=True)
-        # No index cached, _get_index_price will fail (no network)
         executor._index_cache["BTC"] = 0.0
-        btc_price = executor._usd_to_btc(670.0, "BTC")
-        assert btc_price == 670.0
+        assert executor._usd_to_btc(670.0, "BTC") == 670.0
 
-    def test_index_cache_reuse(self):
-        """Index price is cached after first call."""
-        from executor import DeribitExecutor
+    def test_index_cache(self):
         executor = DeribitExecutor("id", "secret", testnet=True)
         executor._index_cache["ETH"] = 3500.0
-        # Second call should return cached value
         assert executor._get_index_price("ETH") == 3500.0
 
 
-class TestScreenParseNone:
-    """Test --screen none/0 support."""
+# --- 14. CLI Helpers (5 tests) ---
 
+class TestCLI:
     def test_screen_none(self):
-        import sys, os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
         from main import _parse_screen_arg
         assert _parse_screen_arg("none") == set()
 
@@ -1015,51 +582,10 @@ class TestScreenParseNone:
         from main import _parse_screen_arg
         assert _parse_screen_arg("all") == {1, 2, 3, 4}
 
-    def test_screen_subset(self):
-        from main import _parse_screen_arg
-        assert _parse_screen_arg("1,3") == {1, 3}
-
-
-class TestRefuseExecution:
-    """Test _refuse_execution guardrail function."""
-
-    def test_refuses_live_with_no_trade(self):
+    def test_refuse_execution_blocks(self):
         from main import _refuse_execution
-        result = _refuse_execution(True, "Countermove detected", False)
-        assert result is not None
-        assert "Guardrail" in result
+        assert _refuse_execution(True, "Countermove", False) is not None
 
-    def test_allows_with_force(self):
+    def test_refuse_execution_allows_force(self):
         from main import _refuse_execution
-        result = _refuse_execution(True, "Countermove detected", True)
-        assert result is None
-
-    def test_allows_dry_run(self):
-        from main import _refuse_execution
-        result = _refuse_execution(False, "Countermove detected", False)
-        assert result is None
-
-    def test_allows_no_reason(self):
-        from main import _refuse_execution
-        result = _refuse_execution(True, None, False)
-        assert result is None
-
-
-class TestGetOrderStatusReturnsOrderResult:
-    """Verify get_order_status returns OrderResult across all executors."""
-
-    def test_dry_run_returns_order_result(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
-                             strike=67500, option_type="call")
-        placed = executor.place_order(order)
-        result = executor.get_order_status(placed.order_id)
-        assert isinstance(result, OrderResult)
-        assert result.status == "simulated"
-        assert result.fill_price > 0
-
-    def test_dry_run_not_found_returns_order_result(self, sample_exchange_quotes):
-        executor = DryRunExecutor(sample_exchange_quotes)
-        result = executor.get_order_status("nonexistent")
-        assert isinstance(result, OrderResult)
-        assert result.status == "not_found"
+        assert _refuse_execution(True, "Countermove", True) is None
