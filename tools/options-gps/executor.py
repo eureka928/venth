@@ -150,7 +150,7 @@ class BaseExecutor(ABC):
         ...
 
     @abstractmethod
-    def get_order_status(self, order_id: str) -> str:
+    def get_order_status(self, order_id: str) -> OrderResult:
         ...
 
     @abstractmethod
@@ -159,10 +159,12 @@ class BaseExecutor(ABC):
 
 
 class DryRunExecutor(BaseExecutor):
-    """Simulates order execution using exchange quote data. No network calls."""
+    """Simulates order execution using exchange quote data. No network calls.
+    Stateful: tracks placed orders for realistic status queries and cancellation."""
 
     def __init__(self, exchange_quotes: list):
         self.exchange_quotes = exchange_quotes
+        self._orders: dict[str, OrderResult] = {}
 
     def authenticate(self) -> bool:
         return True
@@ -171,13 +173,15 @@ class DryRunExecutor(BaseExecutor):
         t0 = time.monotonic()
         ts = _now_iso()
         if not order.strike or not order.option_type:
-            return OrderResult(
+            result = OrderResult(
                 order_id=f"dry-{uuid.uuid4().hex[:8]}",
                 status="error", fill_price=0.0, fill_quantity=0,
                 instrument=order.instrument, action=order.action,
                 exchange="dry_run", error="Missing strike or option_type on order",
                 timestamp=ts,
             )
+            self._orders[result.order_id] = result
+            return result
         quote = best_execution_price(
             self.exchange_quotes, order.strike, order.option_type, order.action,
         )
@@ -187,7 +191,7 @@ class DryRunExecutor(BaseExecutor):
             fill_price = quote.ask if order.action == "BUY" else quote.bid
         slippage = _compute_slippage(order.price, fill_price, order.action)
         latency = (time.monotonic() - t0) * 1000
-        return OrderResult(
+        result = OrderResult(
             order_id=f"dry-{uuid.uuid4().hex[:8]}",
             status="simulated",
             fill_price=fill_price,
@@ -199,18 +203,32 @@ class DryRunExecutor(BaseExecutor):
             timestamp=ts,
             latency_ms=round(latency, 2),
         )
+        self._orders[result.order_id] = result
+        return result
 
-    def get_order_status(self, order_id: str) -> str:
-        return "simulated"
+    def get_order_status(self, order_id: str) -> OrderResult:
+        if order_id in self._orders:
+            return self._orders[order_id]
+        return OrderResult(
+            order_id=order_id, status="not_found", fill_price=0.0,
+            fill_quantity=0, instrument="", action="", exchange="dry_run",
+        )
 
     def cancel_order(self, order_id: str) -> bool:
-        return True
+        if order_id in self._orders:
+            self._orders[order_id].status = "cancelled"
+            return True
+        return False
 
 
 class DeribitExecutor(BaseExecutor):
     """Executes orders on Deribit via JSON-RPC 2.0 over POST.
     Uses `contracts` parameter for unambiguous option sizing.
+    Converts USD prices to BTC using index price, snaps to order book,
+    and aligns to tick size (0.0005 BTC).
     Retries on transient errors (429, 502, 503, timeout)."""
+
+    TICK_SIZE = 0.0005  # Deribit option price tick size in BTC
 
     def __init__(self, client_id: str, client_secret: str, testnet: bool = False):
         self.client_id = client_id
@@ -222,6 +240,7 @@ class DeribitExecutor(BaseExecutor):
         )
         self.token: str | None = None
         self._rpc_id = 0
+        self._index_cache: dict[str, float] = {}  # asset -> USD index price
 
     def _next_id(self) -> int:
         self._rpc_id += 1
@@ -249,6 +268,49 @@ class DeribitExecutor(BaseExecutor):
 
         return _retry(_call)
 
+    def _get_index_price(self, asset: str) -> float:
+        """Fetch the USD index price for an asset (e.g. BTC-USD).
+        Cached per session to avoid repeated calls."""
+        if asset in self._index_cache:
+            return self._index_cache[asset]
+        try:
+            index_name = f"{asset.lower()}_usd"
+            result = self._rpc("public/get_index_price", {"index_name": index_name})
+            price = float(result.get("index_price", 0))
+            if price > 0:
+                self._index_cache[asset] = price
+            return price
+        except Exception:
+            return 0.0
+
+    def _get_book_price(self, instrument: str, action: str) -> float | None:
+        """Fetch live best bid/ask from Deribit order book.
+        Returns best ask for BUY, best bid for SELL. None on failure."""
+        try:
+            result = self._rpc("public/get_order_book", {
+                "instrument_name": instrument, "depth": 1,
+            })
+            if action == "BUY":
+                return float(result.get("best_ask_price", 0)) or None
+            return float(result.get("best_bid_price", 0)) or None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _align_tick(price: float, tick_size: float = 0.0005) -> float:
+        """Round a BTC price to the nearest tick size."""
+        if tick_size <= 0:
+            return price
+        return round(round(price / tick_size) * tick_size, 10)
+
+    def _usd_to_btc(self, price_usd: float, asset: str) -> float:
+        """Convert a USD option price to BTC using the index price.
+        Falls back to returning the USD price if index is unavailable."""
+        index = self._get_index_price(asset)
+        if index <= 0:
+            return price_usd
+        return self._align_tick(price_usd / index)
+
     def authenticate(self) -> bool:
         if self.token:
             return True
@@ -266,6 +328,16 @@ class DeribitExecutor(BaseExecutor):
     def place_order(self, order: OrderRequest) -> OrderResult:
         t0 = time.monotonic()
         ts = _now_iso()
+        # Convert USD limit price to BTC for Deribit
+        asset = order.instrument.split("-")[0] if "-" in order.instrument else ""
+        price_btc = self._usd_to_btc(order.price, asset) if asset else order.price
+        # Snap to live order book if available (tighter price)
+        book_price = self._get_book_price(order.instrument, order.action)
+        if book_price is not None and book_price > 0:
+            if order.action == "BUY":
+                price_btc = min(price_btc, book_price) if price_btc > 0 else book_price
+            else:
+                price_btc = max(price_btc, book_price)
         method = "private/buy" if order.action == "BUY" else "private/sell"
         params = {
             "instrument_name": order.instrument,
@@ -273,7 +345,7 @@ class DeribitExecutor(BaseExecutor):
             "type": order.order_type,
         }
         if order.order_type == "limit":
-            params["price"] = order.price
+            params["price"] = price_btc
         try:
             result = self._rpc(method, params)
             latency = (time.monotonic() - t0) * 1000
@@ -301,12 +373,23 @@ class DeribitExecutor(BaseExecutor):
                 timestamp=ts, latency_ms=round(latency, 2),
             )
 
-    def get_order_status(self, order_id: str) -> str:
+    def get_order_status(self, order_id: str) -> OrderResult:
         try:
             result = self._rpc("private/get_order_state", {"order_id": order_id})
-            return result.get("order_state", "unknown")
+            return OrderResult(
+                order_id=order_id,
+                status=result.get("order_state", "unknown"),
+                fill_price=float(result.get("average_price", 0)),
+                fill_quantity=int(result.get("filled_amount", 0)),
+                instrument=result.get("instrument_name", ""),
+                action="BUY" if result.get("direction") == "buy" else "SELL",
+                exchange="deribit",
+            )
         except Exception:
-            return "unknown"
+            return OrderResult(
+                order_id=order_id, status="unknown", fill_price=0.0,
+                fill_quantity=0, instrument="", action="", exchange="deribit",
+            )
 
     def cancel_order(self, order_id: str) -> bool:
         try:
@@ -396,7 +479,7 @@ class AevoExecutor(BaseExecutor):
                 timestamp=ts, latency_ms=round(latency, 2),
             )
 
-    def get_order_status(self, order_id: str) -> str:
+    def get_order_status(self, order_id: str) -> OrderResult:
         try:
             resp = requests.get(
                 f"{self.base_url}/orders/{order_id}",
@@ -404,9 +487,21 @@ class AevoExecutor(BaseExecutor):
                 timeout=10,
             )
             resp.raise_for_status()
-            return resp.json().get("status", "unknown")
+            data = resp.json()
+            return OrderResult(
+                order_id=order_id,
+                status=data.get("status", "unknown"),
+                fill_price=float(data.get("avg_price", 0)),
+                fill_quantity=int(data.get("filled", 0)),
+                instrument=data.get("instrument", ""),
+                action=data.get("side", "").upper(),
+                exchange="aevo",
+            )
         except Exception:
-            return "unknown"
+            return OrderResult(
+                order_id=order_id, status="unknown", fill_price=0.0,
+                fill_quantity=0, instrument="", action="", exchange="aevo",
+            )
 
     def cancel_order(self, order_id: str) -> bool:
         try:
@@ -442,21 +537,25 @@ def check_slippage(result: OrderResult, max_slippage_pct: float) -> bool:
 
 def _monitor_order(executor: BaseExecutor, order_id: str,
                    timeout_seconds: float = 30.0,
-                   poll_interval: float = 1.0) -> str:
+                   poll_interval: float = 1.0) -> OrderResult:
     """Poll order status until terminal state or timeout.
-    Returns final status. On timeout, attempts to cancel the order."""
+    Returns the final OrderResult. On timeout, attempts to cancel the order."""
+    _terminal = ("filled", "rejected", "cancelled", "error", "simulated")
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        status = executor.get_order_status(order_id)
-        if status in ("filled", "rejected", "cancelled", "error", "simulated"):
-            return status
+        result = executor.get_order_status(order_id)
+        if result.status in _terminal:
+            return result
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         time.sleep(min(poll_interval, max(0, remaining)))
     # Timeout: attempt cancel
     executor.cancel_order(order_id)
-    return "timeout"
+    return OrderResult(
+        order_id=order_id, status="timeout", fill_price=0.0,
+        fill_quantity=0, instrument="", action="", exchange="",
+    )
 
 
 def _cancel_filled_orders(results: list[OrderResult],
@@ -613,12 +712,19 @@ def execute_plan(plan: ExecutionPlan, executor,
 
         # Monitor open orders until filled or timeout
         if (use_timeout and result.status == "open" and result.order_id):
-            final_status = _monitor_order(
+            monitored = _monitor_order(
                 ex, result.order_id,
                 timeout_seconds=timeout_seconds,
                 poll_interval=1.0,
             )
-            result.status = final_status
+            result.status = monitored.status
+            if monitored.fill_price > 0:
+                result.fill_price = monitored.fill_price
+                result.slippage_pct = _compute_slippage(
+                    order.price, monitored.fill_price, order.action,
+                )
+            if monitored.fill_quantity > 0:
+                result.fill_quantity = monitored.fill_quantity
 
         report.results.append(result)
 

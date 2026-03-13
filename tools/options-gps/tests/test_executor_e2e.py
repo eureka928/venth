@@ -218,41 +218,33 @@ def test_execution_report_timing():
 
 
 def test_guardrail_blocks_live_on_no_trade():
-    """When no_trade_reason is active, main.py should block live execution.
-    We test the logic directly: if is_live and no_trade_reason and not force → block."""
-    # This is a logic-level test since we can't easily run the full CLI here
-    no_trade_reason = "Countermove detected"
-    is_live = True
-    force = False
-    blocked = is_live and no_trade_reason and not force
-    assert blocked is True
+    """When no_trade_reason is active, _refuse_execution returns a message."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from main import _refuse_execution
+    result = _refuse_execution(True, "Countermove detected", False)
+    assert result is not None
+    assert "Guardrail" in result
 
 
 def test_guardrail_allows_force():
-    """With --force, live execution proceeds despite no_trade_reason."""
-    no_trade_reason = "Countermove detected"
-    is_live = True
-    force = True
-    blocked = is_live and no_trade_reason and not force
-    assert blocked is False
+    """With --force, _refuse_execution returns None (allowed)."""
+    from main import _refuse_execution
+    result = _refuse_execution(True, "Countermove detected", True)
+    assert result is None
 
 
 def test_guardrail_allows_dry_run():
     """Dry-run ignores guardrail (not live execution)."""
-    no_trade_reason = "Low confidence"
-    is_live = False
-    force = False
-    blocked = is_live and no_trade_reason and not force
-    assert blocked is False
+    from main import _refuse_execution
+    result = _refuse_execution(False, "Low confidence", False)
+    assert result is None
 
 
 def test_guardrail_no_reason_allows_live():
     """When no_trade_reason is None, live execution proceeds."""
-    no_trade_reason = None
-    is_live = True
-    force = False
-    blocked = is_live and no_trade_reason and not force
-    assert not blocked
+    from main import _refuse_execution
+    result = _refuse_execution(True, None, False)
+    assert result is None
 
 
 if __name__ == "__main__":

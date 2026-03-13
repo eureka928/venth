@@ -36,6 +36,12 @@ from exchange import _parse_instrument_key
 from pipeline import ScoredStrategy
 
 
+def _status_result(order_id: str, status: str) -> OrderResult:
+    """Helper: build a minimal OrderResult for test executors."""
+    return OrderResult(order_id=order_id, status=status, fill_price=0.0,
+                       fill_quantity=0, instrument="", action="", exchange="")
+
+
 def _make_scored(strategy):
     """Wrap a StrategyCandidate into a ScoredStrategy for testing."""
     return ScoredStrategy(
@@ -242,13 +248,50 @@ class TestDryRunExecutor:
         assert result.status == "simulated"
         assert result.fill_price == 100.0
 
-    def test_get_order_status(self, sample_exchange_quotes):
+    def test_get_order_status_after_place(self, sample_exchange_quotes):
+        """After placing an order, get_order_status returns the OrderResult."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        assert executor.get_order_status("any-id") == "simulated"
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
+                             strike=67500, option_type="call")
+        placed = executor.place_order(order)
+        result = executor.get_order_status(placed.order_id)
+        assert result.status == "simulated"
+        assert result.order_id == placed.order_id
+        assert result.fill_price > 0
 
-    def test_cancel_order(self, sample_exchange_quotes):
+    def test_get_order_status_unknown_id(self, sample_exchange_quotes):
+        """Unknown order ID returns not_found status."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        assert executor.cancel_order("any-id") is True
+        result = executor.get_order_status("nonexistent-id")
+        assert result.status == "not_found"
+
+    def test_cancel_order_after_place(self, sample_exchange_quotes):
+        """Cancelling a placed order transitions it to cancelled."""
+        executor = DryRunExecutor(sample_exchange_quotes)
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
+                             strike=67500, option_type="call")
+        placed = executor.place_order(order)
+        assert executor.cancel_order(placed.order_id) is True
+        result = executor.get_order_status(placed.order_id)
+        assert result.status == "cancelled"
+
+    def test_cancel_unknown_order(self, sample_exchange_quotes):
+        """Cancelling an unknown order returns False."""
+        executor = DryRunExecutor(sample_exchange_quotes)
+        assert executor.cancel_order("nonexistent-id") is False
+
+    def test_stateful_tracks_multiple_orders(self, sample_exchange_quotes):
+        """Multiple placed orders are all tracked independently."""
+        executor = DryRunExecutor(sample_exchange_quotes)
+        order1 = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
+                              strike=67500, option_type="call")
+        order2 = OrderRequest("BTC-67500-P", "SELL", 1, "limit", 300.0, "dry_run", 1,
+                              strike=67500, option_type="put")
+        r1 = executor.place_order(order1)
+        r2 = executor.place_order(order2)
+        assert r1.order_id != r2.order_id
+        assert executor.get_order_status(r1.order_id).status == "simulated"
+        assert executor.get_order_status(r2.order_id).status == "simulated"
 
 
 class TestExecuteFlow:
@@ -592,22 +635,26 @@ class TestOrderMonitoring:
     """Test _monitor_order polling and timeout behavior."""
 
     def test_immediate_fill(self, sample_exchange_quotes):
-        """DryRunExecutor always returns 'simulated' = terminal."""
+        """DryRunExecutor returns 'simulated' = terminal. Monitor returns OrderResult."""
         executor = DryRunExecutor(sample_exchange_quotes)
-        status = _monitor_order(executor, "dry-123", timeout_seconds=5.0)
-        assert status == "simulated"
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
+                             strike=67500, option_type="call")
+        placed = executor.place_order(order)
+        result = _monitor_order(executor, placed.order_id, timeout_seconds=5.0)
+        assert result.status == "simulated"
+        assert result.order_id == placed.order_id
 
     def test_timeout_triggers_cancel(self):
         """Executor that always returns 'open' should timeout and cancel."""
         class StuckExecutor(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return "open"
+            def get_order_status(self, order_id): return _status_result(order_id, "open")
             def cancel_order(self, order_id): return True
 
         executor = StuckExecutor()
-        status = _monitor_order(executor, "stuck-123", timeout_seconds=0.1, poll_interval=0.05)
-        assert status == "timeout"
+        result = _monitor_order(executor, "stuck-123", timeout_seconds=0.1, poll_interval=0.05)
+        assert result.status == "timeout"
 
     def test_delayed_fill(self):
         """Executor that fills after a few polls."""
@@ -619,13 +666,15 @@ class TestOrderMonitoring:
             def get_order_status(self, order_id):
                 call_count["n"] += 1
                 if call_count["n"] >= 3:
-                    return "filled"
-                return "open"
+                    return OrderResult(order_id=order_id, status="filled",
+                                       fill_price=100.0, fill_quantity=1,
+                                       instrument="X", action="BUY", exchange="test")
+                return _status_result(order_id, "open")
             def cancel_order(self, order_id): return True
 
         executor = DelayedExecutor()
-        status = _monitor_order(executor, "delay-123", timeout_seconds=5.0, poll_interval=0.01)
-        assert status == "filled"
+        result = _monitor_order(executor, "delay-123", timeout_seconds=5.0, poll_interval=0.01)
+        assert result.status == "filled"
         assert call_count["n"] >= 3
 
     def test_rejected_is_terminal(self):
@@ -633,12 +682,27 @@ class TestOrderMonitoring:
         class RejectExecutor(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return "rejected"
+            def get_order_status(self, order_id): return _status_result(order_id, "rejected")
             def cancel_order(self, order_id): return True
 
         executor = RejectExecutor()
-        status = _monitor_order(executor, "rej-123", timeout_seconds=5.0)
-        assert status == "rejected"
+        result = _monitor_order(executor, "rej-123", timeout_seconds=5.0)
+        assert result.status == "rejected"
+
+    def test_monitor_returns_fill_data(self):
+        """Monitor should return OrderResult with fill data when available."""
+        class FillExecutor(BaseExecutor):
+            def authenticate(self): return True
+            def place_order(self, order): pass
+            def get_order_status(self, order_id):
+                return OrderResult(order_id=order_id, status="filled",
+                                   fill_price=650.0, fill_quantity=1,
+                                   instrument="BTC-67500-C", action="BUY", exchange="deribit")
+            def cancel_order(self, order_id): return True
+
+        result = _monitor_order(FillExecutor(), "fill-1", timeout_seconds=5.0)
+        assert result.fill_price == 650.0
+        assert result.fill_quantity == 1
 
 
 class TestAutoCancel:
@@ -654,7 +718,7 @@ class TestAutoCancel:
         class TrackingExecutor(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return "filled"
+            def get_order_status(self, order_id): return _status_result(order_id, "filled")
             def cancel_order(self, order_id):
                 cancel_log.append(order_id)
                 return True
@@ -669,8 +733,11 @@ class TestAutoCancel:
             OrderResult("id-1", "error", 0.0, 0, "X", "BUY", "deribit"),
             OrderResult("id-2", "filled", 200.0, 1, "Y", "SELL", "aevo"),
         ]
-        tracker = DryRunExecutor([])
-        cancelled = _cancel_filled_orders(results, lambda ex: tracker)
+        # DryRunExecutor cancel returns False for unknown IDs now (stateful)
+        executor = DryRunExecutor([])
+        # Manually add the order so cancel works
+        executor._orders["id-2"] = results[1]
+        cancelled = _cancel_filled_orders(results, lambda ex: executor)
         assert cancelled == ["id-2"]
 
     def test_empty_results(self):
@@ -686,7 +753,7 @@ class TestAutoCancel:
         class FailCancelExecutor(BaseExecutor):
             def authenticate(self): return True
             def place_order(self, order): pass
-            def get_order_status(self, order_id): return "filled"
+            def get_order_status(self, order_id): return _status_result(order_id, "filled")
             def cancel_order(self, order_id): return False
 
         cancelled = _cancel_filled_orders(results, lambda ex: FailCancelExecutor())
@@ -767,7 +834,7 @@ class TestExecutePlanWithTimeout:
                     fill_quantity=0, instrument=order.instrument,
                     action=order.action, exchange="test",
                 )
-            def get_order_status(self, order_id): return "open"
+            def get_order_status(self, order_id): return _status_result(order_id, "open")
             def cancel_order(self, order_id): return True
 
         plan = ExecutionPlan(
@@ -866,7 +933,7 @@ class TestPartialFillAutoCancel:
                     fill_quantity=0, instrument=order.instrument,
                     action=order.action, exchange="test", error="rejected",
                 )
-            def get_order_status(self, order_id): return "filled"
+            def get_order_status(self, order_id): return _status_result(order_id, "filled")
             def cancel_order(self, order_id): return True
 
         plan = ExecutionPlan(
@@ -883,3 +950,116 @@ class TestPartialFillAutoCancel:
         assert report.all_filled is False
         assert "Partial fill" in report.summary
         assert len(report.cancelled_orders) > 0
+
+
+class TestDeribitPriceConversion:
+    """Test Deribit USD→BTC conversion, tick alignment, and order book snapping."""
+
+    def test_align_tick_basic(self):
+        from executor import DeribitExecutor
+        # 0.00973 → nearest 0.0005 = 0.0095 (rounds down)
+        assert DeribitExecutor._align_tick(0.00973, 0.0005) == 0.0095
+        assert DeribitExecutor._align_tick(0.00950, 0.0005) == 0.0095
+        # 0.00975 → 0.01 (rounds to nearest)
+        assert DeribitExecutor._align_tick(0.00975, 0.0005) == 0.01
+
+    def test_align_tick_exact(self):
+        from executor import DeribitExecutor
+        assert DeribitExecutor._align_tick(0.0100, 0.0005) == 0.01
+
+    def test_align_tick_zero_tick_size(self):
+        from executor import DeribitExecutor
+        assert DeribitExecutor._align_tick(0.00973, 0) == 0.00973
+
+    def test_usd_to_btc_conversion(self):
+        """USD price / index price → BTC price, aligned to tick."""
+        from executor import DeribitExecutor
+        executor = DeribitExecutor("id", "secret", testnet=True)
+        executor._index_cache["BTC"] = 67000.0
+        btc_price = executor._usd_to_btc(670.0, "BTC")
+        # 670 / 67000 = 0.01 exactly
+        assert btc_price == 0.01
+
+    def test_usd_to_btc_fallback_no_index(self):
+        """When index is 0/unavailable, returns USD price as-is."""
+        from executor import DeribitExecutor
+        executor = DeribitExecutor("id", "secret", testnet=True)
+        # No index cached, _get_index_price will fail (no network)
+        executor._index_cache["BTC"] = 0.0
+        btc_price = executor._usd_to_btc(670.0, "BTC")
+        assert btc_price == 670.0
+
+    def test_index_cache_reuse(self):
+        """Index price is cached after first call."""
+        from executor import DeribitExecutor
+        executor = DeribitExecutor("id", "secret", testnet=True)
+        executor._index_cache["ETH"] = 3500.0
+        # Second call should return cached value
+        assert executor._get_index_price("ETH") == 3500.0
+
+
+class TestScreenParseNone:
+    """Test --screen none/0 support."""
+
+    def test_screen_none(self):
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        from main import _parse_screen_arg
+        assert _parse_screen_arg("none") == set()
+
+    def test_screen_zero(self):
+        from main import _parse_screen_arg
+        assert _parse_screen_arg("0") == set()
+
+    def test_screen_all(self):
+        from main import _parse_screen_arg
+        assert _parse_screen_arg("all") == {1, 2, 3, 4}
+
+    def test_screen_subset(self):
+        from main import _parse_screen_arg
+        assert _parse_screen_arg("1,3") == {1, 3}
+
+
+class TestRefuseExecution:
+    """Test _refuse_execution guardrail function."""
+
+    def test_refuses_live_with_no_trade(self):
+        from main import _refuse_execution
+        result = _refuse_execution(True, "Countermove detected", False)
+        assert result is not None
+        assert "Guardrail" in result
+
+    def test_allows_with_force(self):
+        from main import _refuse_execution
+        result = _refuse_execution(True, "Countermove detected", True)
+        assert result is None
+
+    def test_allows_dry_run(self):
+        from main import _refuse_execution
+        result = _refuse_execution(False, "Countermove detected", False)
+        assert result is None
+
+    def test_allows_no_reason(self):
+        from main import _refuse_execution
+        result = _refuse_execution(True, None, False)
+        assert result is None
+
+
+class TestGetOrderStatusReturnsOrderResult:
+    """Verify get_order_status returns OrderResult across all executors."""
+
+    def test_dry_run_returns_order_result(self, sample_exchange_quotes):
+        executor = DryRunExecutor(sample_exchange_quotes)
+        order = OrderRequest("BTC-67500-C", "BUY", 1, "limit", 660.0, "dry_run", 0,
+                             strike=67500, option_type="call")
+        placed = executor.place_order(order)
+        result = executor.get_order_status(placed.order_id)
+        assert isinstance(result, OrderResult)
+        assert result.status == "simulated"
+        assert result.fill_price > 0
+
+    def test_dry_run_not_found_returns_order_result(self, sample_exchange_quotes):
+        executor = DryRunExecutor(sample_exchange_quotes)
+        result = executor.get_order_status("nonexistent")
+        assert isinstance(result, OrderResult)
+        assert result.status == "not_found"

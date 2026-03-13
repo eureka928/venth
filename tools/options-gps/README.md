@@ -60,7 +60,7 @@ Execution is supported only for **crypto assets** (BTC, ETH, SOL). Use `--execut
 
 **Exchange protocols:**
 
-- **Deribit**: JSON-RPC 2.0 over POST with Bearer token auth. Uses `contracts` parameter for unambiguous option sizing. Retries on transient errors (429, 502, 503, timeout) with exponential backoff.
+- **Deribit**: JSON-RPC 2.0 over POST with Bearer token auth. Uses `contracts` parameter for unambiguous option sizing. Converts USD prices to BTC via index price lookup (`_get_index_price`), snaps to live order book best bid/ask (`_get_book_price`), and aligns to tick size (0.0005 BTC). Retries on transient errors (429, 502, 503, timeout) with exponential backoff.
 - **Aevo**: REST API with per-request HMAC-SHA256 signing (`AEVO-KEY`, `AEVO-TIMESTAMP`, `AEVO-SIGNATURE` headers). Retries on transient errors.
 
 **Auto-routing**: When `--exchange` is not set, each leg is auto-routed to its best venue via `leg_divergences()`. For live execution, a per-exchange executor factory creates and caches separate authenticated sessions.

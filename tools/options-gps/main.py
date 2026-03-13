@@ -808,15 +808,27 @@ def _card_to_log(card: ScoredStrategy | None, exchange_divergence: float | None 
 
 
 def _parse_screen_arg(screen_arg: str) -> set[int]:
-    """Parse --screen flag into set of screen numbers (1-4)."""
-    if screen_arg.strip().lower() == "all":
+    """Parse --screen flag into set of screen numbers (1-4).
+    Supports 'all' (default), 'none'/'0' (skip all analysis), or comma-separated."""
+    val = screen_arg.strip().lower()
+    if val == "all":
         return {1, 2, 3, 4}
+    if val in ("none", "0"):
+        return set()
     screens: set[int] = set()
     for part in screen_arg.split(","):
         part = part.strip()
         if part.isdigit() and 1 <= int(part) <= 4:
             screens.add(int(part))
     return screens or {1, 2, 3, 4}
+
+
+def _refuse_execution(is_live: bool, no_trade_reason: str | None, force: bool) -> str | None:
+    """Check if execution should be refused due to guardrails.
+    Returns refusal message string, or None if execution is allowed."""
+    if is_live and no_trade_reason and not force:
+        return f"Guardrail: {no_trade_reason}. Use --force to override."
+    return None
 
 
 def main():
@@ -827,7 +839,7 @@ def main():
     parser.add_argument("--view", default=None, choices=["bullish", "bearish", "neutral", "vol"])
     parser.add_argument("--risk", default=None, choices=["low", "medium", "high"])
     parser.add_argument("--screen", default="all",
-                        help="Screens to show: comma-separated 1,2,3,4 or 'all' (default: all)")
+                        help="Screens to show: 1,2,3,4 / 'all' / 'none' (default: all)")
     parser.add_argument("--no-prompt", action="store_true", dest="no_prompt",
                         help="Skip pause between screens (dump all at once)")
     parser.add_argument("--execute", default=None, nargs="?", const="best",
@@ -945,9 +957,9 @@ def main():
 
     if is_executing and exec_card is not None and exchange_quotes:
         # Guardrail: refuse live execution when no-trade unless --force
-        if is_live and no_trade_reason and not args.force:
-            print(f"\n  Guardrail: {no_trade_reason}")
-            print(f"  Use --force to override and execute anyway.")
+        refusal = _refuse_execution(is_live, no_trade_reason, args.force)
+        if refusal:
+            print(f"\n  {refusal}")
         else:
             if shown_any:
                 _pause("Screen 5: Execution", args.no_prompt)
