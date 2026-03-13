@@ -253,6 +253,24 @@ class DeribitExecutor(BaseExecutor):
             "https://test.deribit.com/api/v2" if testnet else "https://www.deribit.com/api/v2"
         )
         self.token: str | None = None
+        self._index_prices: dict[str, float] = {}  # cache: "btc_usd" -> price
+
+    def _get_index_price(self, asset: str) -> float:
+        """Fetch and cache the underlying index price (e.g. BTC/USD) for price conversion."""
+        index_name = f"{asset.lower()}_usd"
+        if index_name in self._index_prices:
+            return self._index_prices[index_name]
+        try:
+            result = _deribit_rpc(
+                self.base_url, "public/get_index_price",
+                {"index_name": index_name}, token=None,
+            )
+            price = float(result.get("index_price", 0))
+            if price > 0:
+                self._index_prices[index_name] = price
+            return price
+        except Exception:
+            return 0.0
 
     def authenticate(self) -> bool:
         if self.token:
@@ -273,27 +291,62 @@ class DeribitExecutor(BaseExecutor):
         except Exception:
             return False
 
+    def _get_book_price(self, instrument: str, action: str) -> float | None:
+        """Fetch best ask (BUY) or bid (SELL) in BTC from the live order book.
+        Falls back to mark_price. Snaps to tick size to avoid rejection."""
+        try:
+            result = _deribit_rpc(
+                self.base_url, "public/get_order_book",
+                {"instrument_name": instrument}, token=None,
+            )
+            if action == "BUY":
+                price = result.get("best_ask_price", 0)
+                if not price:
+                    price = result.get("mark_price", 0)
+            else:
+                price = result.get("best_bid_price", 0)
+                if not price:
+                    price = result.get("mark_price", 0)
+            if price:
+                tick = 0.0005  # Deribit option tick size
+                return round(round(float(price) / tick) * tick, 4)
+            return None
+        except Exception:
+            return None
+
     def place_order(self, order: OrderRequest) -> OrderResult:
         method = "private/buy" if order.action == "BUY" else "private/sell"
-        # Use contracts for options (unambiguous); amount is in underlying for options on Deribit.
+        # Deribit options: amount in contracts (1 contract = 1 BTC), price in BTC.
+        # For live orders, use the exchange's current order book price to ensure
+        # the limit price is valid. Fall back to converted pipeline price.
+        asset = order.instrument.split("-")[0] if "-" in order.instrument else "BTC"
+        index_price = self._get_index_price(asset)
         params = {
             "instrument_name": order.instrument,
-            "contracts": order.quantity,
+            "amount": order.quantity,
             "type": order.order_type,
         }
         if order.order_type == "limit":
-            params["price"] = order.price
+            book_price = self._get_book_price(order.instrument, order.action)
+            if book_price and book_price > 0:
+                params["price"] = book_price
+            elif index_price > 0:
+                params["price"] = round(order.price / index_price, 4)
+            else:
+                params["price"] = order.price  # fallback: send as-is
         t0 = time.monotonic()
         try:
             result = _deribit_rpc(self.base_url, method, params, self.token)
             latency = int((time.monotonic() - t0) * 1000)
             order_data = result.get("order", {})
-            fill_price = float(order_data.get("average_price", 0))
-            slip = _slippage_pct(order.price, fill_price, order.action) if fill_price > 0 else 0.0
+            fill_price_btc = float(order_data.get("average_price", 0))
+            # Convert BTC fill price back to USD for pipeline consistency
+            fill_price_usd = fill_price_btc * index_price if index_price > 0 else fill_price_btc
+            slip = _slippage_pct(order.price, fill_price_usd, order.action) if fill_price_usd > 0 else 0.0
             return OrderResult(
                 order_id=order_data.get("order_id", ""),
                 status=order_data.get("order_state", "error"),
-                fill_price=fill_price,
+                fill_price=round(fill_price_usd, 2),
                 fill_quantity=int(order_data.get("filled_amount", 0)),
                 instrument=order.instrument,
                 action=order.action,
