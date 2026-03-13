@@ -285,14 +285,21 @@ class DeribitExecutor(BaseExecutor):
 
     def _get_book_price(self, instrument: str, action: str) -> float | None:
         """Fetch live best bid/ask from Deribit order book.
-        Returns best ask for BUY, best bid for SELL. None on failure."""
+        Returns best ask for BUY, best bid for SELL.
+        Falls back to mark_price when best bid/ask is unavailable."""
         try:
             result = self._rpc("public/get_order_book", {
                 "instrument_name": instrument, "depth": 1,
             })
             if action == "BUY":
-                return float(result.get("best_ask_price", 0)) or None
-            return float(result.get("best_bid_price", 0)) or None
+                price = float(result.get("best_ask_price", 0))
+            else:
+                price = float(result.get("best_bid_price", 0))
+            if price and price > 0:
+                return price
+            # Fallback to mark_price when book is empty
+            mark = float(result.get("mark_price", 0))
+            return mark if mark > 0 else None
         except Exception:
             return None
 
